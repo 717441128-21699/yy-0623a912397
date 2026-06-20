@@ -6,6 +6,25 @@ export type SupplementUnit = 'kg' | '瓶' | '罐'
 
 export type DispatcherDecision = '继续运输' | '换车' | '转入临时冷库'
 
+export type RiskLevel = '低风险' | '中风险' | '高风险'
+
+export interface MidRouteReading {
+  id: string
+  temperature: number
+  note: string
+  createdAt: string
+}
+
+export interface PlanRecommendation {
+  decision: DispatcherDecision
+  riskLevel: RiskLevel
+  riskScore: number
+  suggestedAction: string
+  contactPerson: string
+  contactPhone: string
+  notes: string[]
+}
+
 export interface DispatcherResult {
   decision: DispatcherDecision
   reasons: string[]
@@ -13,7 +32,10 @@ export interface DispatcherResult {
   supplementOk: boolean
   siteReliable: boolean
   distanceOk: boolean
+  temperatureTrendWorsening: boolean
   score: number
+  plans: PlanRecommendation[]
+  needDispatcherConfirm: boolean
 }
 
 export interface HistoryRecord {
@@ -32,6 +54,7 @@ export interface HistoryRecord {
   retestTemp: number
   receiptPhotos: string[]
   dispatcherResult: DispatcherResult
+  midRouteReadings: MidRouteReading[]
 }
 
 export interface Vehicle {

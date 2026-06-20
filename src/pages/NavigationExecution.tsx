@@ -17,6 +17,8 @@ import {
   FlaskConical,
   Warehouse,
   ShieldCheck,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react'
 
 const STEP_ICONS = [Car, Phone, Snowflake, Thermometer]
@@ -34,6 +36,9 @@ export default function NavigationExecution() {
     selectedPlan,
     checklistCompleted,
     toggleChecklist,
+    midRouteReadings,
+    addMidRouteReading,
+    currentTemp,
   } = useAppStore()
 
   const [remainingDistance, setRemainingDistance] = useState(
@@ -41,6 +46,9 @@ export default function NavigationExecution() {
   )
   const [arrived, setArrived] = useState(false)
   const [showArrivalModal, setShowArrivalModal] = useState(false)
+  const [showMidRouteModal, setShowMidRouteModal] = useState(false)
+  const [tempInput, setTempInput] = useState('')
+  const [noteInput, setNoteInput] = useState('')
 
   const etaMinutes = Math.ceil(remainingDistance / 0.06)
 
@@ -94,6 +102,22 @@ export default function NavigationExecution() {
   const formatDistance = (d: number) => {
     return d.toFixed(1)
   }
+
+  const formatTime = (isoString: string) => {
+    const date = new Date(isoString)
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
+
+  const handleSaveReading = () => {
+    const temp = parseFloat(tempInput)
+    if (isNaN(temp)) return
+    addMidRouteReading(temp, noteInput)
+    setShowMidRouteModal(false)
+    setTempInput('')
+    setNoteInput('')
+  }
+
+  const initialTemp = typeof currentTemp === 'number' ? currentTemp : 0
 
   if (!selectedPlan) {
     return (
@@ -256,6 +280,71 @@ export default function NavigationExecution() {
 
       <div className="px-4 mb-4">
         <div className="card-dark">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-navy-700 flex items-center justify-center">
+                <Thermometer className="w-5 h-5 text-ice-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-cool-50">途中温度记录</h2>
+            </div>
+            <button
+              onClick={() => setShowMidRouteModal(true)}
+              className="px-4 py-2 rounded-lg bg-ice-500/20 text-ice-400 text-sm font-medium flex items-center gap-1.5 min-h-[44px] active:bg-ice-500/30 transition-colors"
+            >
+              <span className="text-lg leading-none">+</span>
+              记录温度
+            </button>
+          </div>
+
+          {midRouteReadings.length === 0 ? (
+            <div className="py-8 text-center">
+              <Thermometer className="w-10 h-10 text-navy-600 mx-auto mb-3" />
+              <p className="text-sm text-navy-600">暂无途中记录，温度异常时可随时记录</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {midRouteReadings.map((reading) => {
+                const isHigher = reading.temperature > initialTemp
+                const isLower = reading.temperature < initialTemp
+                return (
+                  <div
+                    key={reading.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-navy-900/40 border border-navy-700/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                        isHigher ? 'bg-warn-500/20' : isLower ? 'bg-ok-500/20' : 'bg-navy-700'
+                      }`}>
+                        {isHigher ? (
+                          <TrendingUp className="w-4 h-4 text-warn-400" />
+                        ) : isLower ? (
+                          <TrendingDown className="w-4 h-4 text-ok-400" />
+                        ) : (
+                          <Thermometer className="w-4 h-4 text-cool-100" />
+                        )}
+                      </div>
+                      <div>
+                        <p className={`font-din font-bold text-lg ${
+                          isHigher ? 'text-warn-400' : isLower ? 'text-ok-400' : 'text-cool-50'
+                        }`}>
+                          {reading.temperature.toFixed(1)}<span className="text-sm ml-0.5 font-normal">℃</span>
+                        </p>
+                        {reading.note && (
+                          <p className="text-xs text-cool-100 mt-0.5">{reading.note}</p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-navy-500 font-din">{formatTime(reading.createdAt)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-4 mb-4">
+        <div className="card-dark">
           <h2 className="text-lg font-semibold text-cool-50 mb-4">任务清单</h2>
           <div>
             {CHECKLIST_LABELS.map((label, i) => {
@@ -358,6 +447,68 @@ export default function NavigationExecution() {
           >
             开始处置
           </button>
+        </div>
+      )}
+
+      {showMidRouteModal && (
+        <div className="fixed inset-0 z-50 bg-navy-900/95 flex items-end sm:items-center justify-center">
+          <div className="w-full max-w-md bg-navy-800 rounded-t-2xl sm:rounded-2xl p-6 border border-navy-700/50">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-lg bg-ice-500/20 flex items-center justify-center">
+                <Thermometer className="w-5 h-5 text-ice-400" />
+              </div>
+              <h2 className="text-xl font-bold text-cool-50">途中复测</h2>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm text-cool-100 mb-2">当前温度</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={tempInput}
+                    onChange={(e) => setTempInput(e.target.value)}
+                    placeholder="请输入温度"
+                    className="input-field pr-12 text-lg font-din"
+                    step="0.1"
+                    autoFocus
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-cool-100">℃</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-cool-100 mb-2">备注</label>
+                <textarea
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="备注：温度变化情况等"
+                  rows={3}
+                  className="input-field resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowMidRouteModal(false)
+                  setTempInput('')
+                  setNoteInput('')
+                }}
+                className="flex-1 py-3.5 rounded-xl bg-navy-700 text-cool-50 font-semibold min-h-[44px] active:bg-navy-600 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveReading}
+                disabled={!tempInput || isNaN(parseFloat(tempInput))}
+                className="flex-1 py-3.5 rounded-xl bg-ice-500 text-navy-900 font-semibold min-h-[44px] active:bg-ice-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                保存
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

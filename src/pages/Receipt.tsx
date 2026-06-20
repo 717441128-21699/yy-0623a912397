@@ -19,12 +19,6 @@ import {
 
 const STEP_ICONS = [Car, Phone, Snowflake, Thermometer]
 
-const DECISIONS = [
-  { value: '继续运输' as const, icon: Truck, bg: 'bg-ok-500', border: 'border-ok-500' },
-  { value: '换车' as const, icon: RefreshCw, bg: 'bg-warn-500', border: 'border-warn-500' },
-  { value: '转入临时冷库' as const, icon: Warehouse, bg: 'bg-ice-500', border: 'border-ice-500' },
-]
-
 export default function Receipt() {
   const navigate = useNavigate()
   const {
@@ -222,7 +216,6 @@ export default function Receipt() {
                 maxPhotos={3}
                 label="现场照片"
                 hint="拍摄补冷后车厢/温控屏照片（最多3张）"
-                capture={true}
               />
             </div>
           </div>
@@ -248,6 +241,27 @@ export default function Receipt() {
           <p className="text-cool-100 mb-6">调度员智能判断结果</p>
 
           <div className="w-full max-w-sm space-y-4 mb-6">
+            {dispatcherResult.needDispatcherConfirm && (
+              <div className="p-4 rounded-xl border border-warn-500/30 bg-warn-500/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-warn-500/20 flex items-center justify-center shrink-0">
+                    <Phone className="w-5 h-5 text-warn-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-warn-400 font-semibold text-base">需要调度员确认</h4>
+                    <p className="text-cool-100 text-sm">建议先联系调度中心再行动</p>
+                  </div>
+                </div>
+                <a
+                  href="tel:400-888-1234"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-warn-500 text-navy-900 font-medium text-sm min-h-[44px]"
+                >
+                  <Phone className="w-4 h-4" />
+                  一键呼叫调度中心
+                </a>
+              </div>
+            )}
+
             <div className="card-dark">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-navy-600 text-sm">综合评分</span>
@@ -320,24 +334,75 @@ export default function Receipt() {
             </div>
 
             <div className="space-y-3">
-              {DECISIONS.map((d) => {
-                const isActive = dispatcherDecision === d.value
-                const Icon = d.icon
+              <h3 className="text-cool-50 font-semibold text-base">方案建议</h3>
+              {dispatcherResult.plans.map((plan) => {
+                const isRecommended = plan.decision === (dispatcherResult.decision || dispatcherDecision)
+                const riskBadgeClass =
+                  plan.riskLevel === '低风险'
+                    ? 'bg-ok-500/20 text-ok-400 border-ok-500/30'
+                    : plan.riskLevel === '中风险'
+                    ? 'bg-warn-500/20 text-warn-400 border-warn-500/30'
+                    : 'bg-red-500/20 text-red-400 border-red-500/30'
+                const PlanIcon =
+                  plan.decision === '继续运输'
+                    ? Truck
+                    : plan.decision === '换车'
+                    ? RefreshCw
+                    : Warehouse
+                const planBgColor =
+                  plan.decision === '继续运输'
+                    ? 'bg-ok-500'
+                    : plan.decision === '换车'
+                    ? 'bg-warn-500'
+                    : 'bg-ice-500'
+
                 return (
                   <div
-                    key={d.value}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
-                      isActive
-                        ? `${d.border} bg-navy-800/80`
-                        : 'border-navy-700/30 bg-navy-800/30 opacity-40'
+                    key={plan.decision}
+                    className={`relative p-4 rounded-xl border-2 transition-all ${
+                      isRecommended
+                        ? 'border-ice-500 bg-navy-800/80'
+                        : 'border-navy-700/30 bg-navy-800/30'
                     }`}
                   >
-                    <div className={`w-12 h-12 rounded-full ${isActive ? d.bg : 'bg-navy-600'} flex items-center justify-center`}>
-                      <Icon className={`w-6 h-6 ${isActive ? 'text-white' : 'text-navy-700'}`} />
+                    {isRecommended && (
+                      <div className="absolute -top-2.5 right-4 px-2 py-0.5 bg-ice-500 text-navy-900 text-xs font-bold rounded-full">
+                        推荐
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-11 h-11 rounded-full ${planBgColor} flex items-center justify-center shrink-0`}>
+                        <PlanIcon className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-cool-50 font-semibold text-base">{plan.decision}</h4>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${riskBadgeClass}`}>
+                            {plan.riskLevel}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <span className={`text-lg font-semibold ${isActive ? 'text-cool-50' : 'text-navy-600'}`}>
-                      {d.value}
-                    </span>
+                    <p className="text-cool-100 text-sm mb-3">{plan.suggestedAction}</p>
+                    {plan.contactPhone && (
+                      <a
+                        href={`tel:${plan.contactPhone}`}
+                        className="flex items-center gap-2 text-ice-400 text-sm mb-3 min-h-[32px]"
+                      >
+                        <Phone className="w-4 h-4" />
+                        <span>{plan.contactPerson} · {plan.contactPhone}</span>
+                      </a>
+                    )}
+                    {plan.notes.length > 0 && (
+                      <ul className="space-y-1.5">
+                        {plan.notes.map((note, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-navy-500 text-xs">
+                            <span className="text-navy-600 mt-0.5">•</span>
+                            <span>{note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )
               })}

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { CargoType, PlanType, SupplementUnit, DispatcherDecision, SupplementPlan, DispatcherResult, HistoryRecord } from '@/utils/types'
+import type { CargoType, PlanType, SupplementUnit, DispatcherDecision, SupplementPlan, DispatcherResult, HistoryRecord, MidRouteReading } from '@/utils/types'
 import { getDispatcherDecision } from '@/utils/dispatcher'
 
 const MOCK_HISTORY: HistoryRecord[] = [
@@ -20,13 +20,58 @@ const MOCK_HISTORY: HistoryRecord[] = [
     receiptPhotos: ['#1b2b3c', '#1a3a5c'],
     dispatcherResult: {
       decision: '继续运输',
-      reasons: ['温度已恢复至安全范围', '补冷量充足', '站点距离适中'],
+      reasons: ['温度已恢复至安全范围', '补冷量充足', '站点距离适中', '途中温度相对稳定'],
       temperatureOk: true,
       supplementOk: true,
       siteReliable: true,
       distanceOk: true,
+      temperatureTrendWorsening: false,
       score: 92,
+      plans: [
+        {
+          decision: '继续运输',
+          riskLevel: '低风险',
+          riskScore: 8,
+          suggestedAction: '按原计划继续行驶，注意观察温度',
+          contactPerson: '无需联系',
+          contactPhone: '',
+          notes: ['温度在安全范围内', '补冷量充足', '温度趋势稳定', '剩余里程较短'],
+        },
+        {
+          decision: '换车',
+          riskLevel: '高风险',
+          riskScore: 92,
+          suggestedAction: '联系调度中心安排换车，原地等待',
+          contactPerson: '调度中心',
+          contactPhone: '400-888-1234',
+          notes: [],
+        },
+        {
+          decision: '转入临时冷库',
+          riskLevel: '中风险',
+          riskScore: 60,
+          suggestedAction: '联系冷库办理入库，等待进一步指示',
+          contactPerson: '附近合作冷库',
+          contactPhone: '400-888-1234',
+          notes: ['当前站点非合作冷库', '温度已恢复，可考虑继续运输'],
+        },
+      ],
+      needDispatcherConfirm: false,
     },
+    midRouteReadings: [
+      {
+        id: 'reading-mock-1-1',
+        temperature: -12.5,
+        note: '行驶30分钟后测温',
+        createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+      },
+      {
+        id: 'reading-mock-1-2',
+        temperature: -14.8,
+        note: '行驶1小时后测温',
+        createdAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
+      },
+    ],
   },
   {
     id: 'history-mock-2',
@@ -45,13 +90,52 @@ const MOCK_HISTORY: HistoryRecord[] = [
     receiptPhotos: ['#1a3a5c'],
     dispatcherResult: {
       decision: '转入临时冷库',
-      reasons: ['初始温度过高', '剩余里程较短', '冷库容量充足'],
+      reasons: ['温度仍高于安全阈值', '补冷量充足', '补冷站点可靠', '剩余里程较短', '途中温度相对稳定'],
       temperatureOk: false,
       supplementOk: true,
       siteReliable: true,
       distanceOk: true,
+      temperatureTrendWorsening: false,
       score: 65,
+      plans: [
+        {
+          decision: '继续运输',
+          riskLevel: '中风险',
+          riskScore: 35,
+          suggestedAction: '按原计划继续行驶，注意观察温度',
+          contactPerson: '无需联系',
+          contactPhone: '',
+          notes: ['补冷量充足', '剩余里程较短'],
+        },
+        {
+          decision: '换车',
+          riskLevel: '中风险',
+          riskScore: 65,
+          suggestedAction: '联系调度中心安排换车，原地等待',
+          contactPerson: '调度中心',
+          contactPhone: '400-888-1234',
+          notes: ['温度未恢复安全范围'],
+        },
+        {
+          decision: '转入临时冷库',
+          riskLevel: '低风险',
+          riskScore: 30,
+          suggestedAction: '联系冷库办理入库，等待进一步指示',
+          contactPerson: '冷库管理员',
+          contactPhone: '010-12345678',
+          notes: ['附近有合作冷库', '可快速入库保障货物安全'],
+        },
+      ],
+      needDispatcherConfirm: false,
     },
+    midRouteReadings: [
+      {
+        id: 'reading-mock-2-1',
+        temperature: 8.2,
+        note: '行驶20分钟后测温',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2 - 1000 * 60 * 40).toISOString(),
+      },
+    ],
   },
   {
     id: 'history-mock-3',
@@ -70,13 +154,64 @@ const MOCK_HISTORY: HistoryRecord[] = [
     receiptPhotos: ['#2a4a6c', '#1b2b3c'],
     dispatcherResult: {
       decision: '换车',
-      reasons: ['制冷系统可能存在故障', '补冷后温度仍不稳定', '剩余里程较远'],
+      reasons: ['温度仍高于安全阈值', '补冷量可能不足', '补冷站点保障能力一般', '剩余里程较长，建议谨慎驾驶', '途中温度持续升高（最高13.2℃），趋势不乐观'],
       temperatureOk: false,
       supplementOk: false,
-      siteReliable: true,
+      siteReliable: false,
       distanceOk: false,
-      score: 45,
+      temperatureTrendWorsening: true,
+      score: 35,
+      plans: [
+        {
+          decision: '继续运输',
+          riskLevel: '高风险',
+          riskScore: 65,
+          suggestedAction: '谨慎驾驶，每30分钟复测一次',
+          contactPerson: '无需联系',
+          contactPhone: '',
+          notes: [],
+        },
+        {
+          decision: '换车',
+          riskLevel: '低风险',
+          riskScore: 35,
+          suggestedAction: '联系调度中心安排换车，原地等待',
+          contactPerson: '调度中心',
+          contactPhone: '400-888-1234',
+          notes: ['温度未恢复安全范围', '补冷量不足', '温度趋势恶化', '剩余里程较长'],
+        },
+        {
+          decision: '转入临时冷库',
+          riskLevel: '中风险',
+          riskScore: 60,
+          suggestedAction: '联系冷库办理入库，等待进一步指示',
+          contactPerson: '附近合作冷库',
+          contactPhone: '400-888-1234',
+          notes: ['当前站点非合作冷库'],
+        },
+      ],
+      needDispatcherConfirm: true,
     },
+    midRouteReadings: [
+      {
+        id: 'reading-mock-3-1',
+        temperature: 12.1,
+        note: '行驶15分钟后测温',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 7 - 1000 * 60 * 45).toISOString(),
+      },
+      {
+        id: 'reading-mock-3-2',
+        temperature: 10.5,
+        note: '补冷后30分钟测温',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 7 - 1000 * 60 * 15).toISOString(),
+      },
+      {
+        id: 'reading-mock-3-3',
+        temperature: 13.2,
+        note: '行驶1小时后测温',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 7).toISOString(),
+      },
+    ],
   },
 ]
 
@@ -111,6 +246,7 @@ interface AppState {
   dispatcherResult: DispatcherResult | null
   historyRecords: HistoryRecord[]
   navigationArrived: boolean
+  midRouteReadings: MidRouteReading[]
 
   setPlateNumber: (v: string) => void
   setCargoType: (v: CargoType) => void
@@ -134,6 +270,7 @@ interface AppState {
   setNavigationArrived: (v: boolean) => void
   addToHistory: () => void
   loadHistory: () => void
+  addMidRouteReading: (temp: number, note: string) => void
 
   resetAll: () => void
 }
@@ -157,6 +294,7 @@ const initialState = {
   dispatcherResult: null as DispatcherResult | null,
   historyRecords: [] as HistoryRecord[],
   navigationArrived: false,
+  midRouteReadings: [] as MidRouteReading[],
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -207,7 +345,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       typeof state.supplementAmount === 'number' ? state.supplementAmount : 0,
       state.supplementUnit,
       state.selectedPlan?.type || '安全停车区',
-      typeof state.remainingMileage === 'number' ? state.remainingMileage : 0
+      typeof state.remainingMileage === 'number' ? state.remainingMileage : 0,
+      state.midRouteReadings
     )
     set({
       dispatcherDecision: result.decision,
@@ -245,8 +384,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         supplementOk: true,
         siteReliable: true,
         distanceOk: true,
+        temperatureTrendWorsening: false,
         score: 0,
+        plans: [],
+        needDispatcherConfirm: false,
       },
+      midRouteReadings: state.midRouteReadings,
     }
     const nextRecords = [record, ...state.historyRecords]
     set({ historyRecords: nextRecords })
@@ -257,6 +400,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadHistory: () => {
     set({ historyRecords: loadHistoryFromStorage() })
   },
+  addMidRouteReading: (temp, note) =>
+    set((s) => {
+      const reading: MidRouteReading = {
+        id: `reading-${Date.now()}`,
+        temperature: temp,
+        note,
+        createdAt: new Date().toISOString(),
+      }
+      return { midRouteReadings: [reading, ...s.midRouteReadings] }
+    }),
 
   resetAll: () =>
     set({

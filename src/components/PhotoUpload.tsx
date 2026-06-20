@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react'
-import { Camera, X, ZoomIn, RefreshCw } from 'lucide-react'
+import { Camera, X, ZoomIn, RefreshCw, Image as ImageIcon } from 'lucide-react'
 
 interface PhotoUploadProps {
   photos: string[]
@@ -8,7 +8,6 @@ interface PhotoUploadProps {
   maxPhotos?: number
   label?: string
   hint?: string
-  capture?: boolean
 }
 
 export default function PhotoUpload({
@@ -18,9 +17,9 @@ export default function PhotoUpload({
   maxPhotos = 3,
   label = '拍摄照片',
   hint,
-  capture = true,
 }: PhotoUploadProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const albumInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
 
@@ -75,13 +74,13 @@ export default function PhotoUpload({
     const file = files[0]
     if (!file.type.startsWith('image/')) {
       alert('请选择图片文件')
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      e.target.value = ''
       return
     }
 
     if (photos.length >= maxPhotos) {
       alert(`最多只能上传 ${maxPhotos} 张照片`)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      e.target.value = ''
       return
     }
 
@@ -94,16 +93,24 @@ export default function PhotoUpload({
       alert('图片处理失败，请重试')
     } finally {
       setLoading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      e.target.value = ''
     }
   }, [maxPhotos, onAdd, photos.length])
 
-  const handleUploadClick = () => {
+  const handleCameraClick = () => {
     if (photos.length >= maxPhotos) {
       alert(`最多只能上传 ${maxPhotos} 张照片`)
       return
     }
-    fileInputRef.current?.click()
+    cameraInputRef.current?.click()
+  }
+
+  const handleAlbumClick = () => {
+    if (photos.length >= maxPhotos) {
+      alert(`最多只能上传 ${maxPhotos} 张照片`)
+      return
+    }
+    albumInputRef.current?.click()
   }
 
   const handleRetake = () => {
@@ -111,7 +118,7 @@ export default function PhotoUpload({
       onRemove(previewIndex)
       setPreviewIndex(null)
       setTimeout(() => {
-        fileInputRef.current?.click()
+        cameraInputRef.current?.click()
       }, 100)
     }
   }
@@ -130,58 +137,71 @@ export default function PhotoUpload({
         {label}
       </label>
 
-      <div className="flex flex-wrap gap-3">
-        {photos.map((photo, idx) => (
-          <div
-            key={idx}
-            className="w-20 h-20 rounded-lg overflow-hidden relative group"
-          >
-            {isValidDataUrl(photo) ? (
-              <img
-                src={photo}
-                alt={`照片 ${idx + 1}`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-navy-800 flex items-center justify-center">
-                <Camera className="w-6 h-6 text-navy-600" />
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => onRemove(idx)}
-              className="absolute top-1 right-1 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity min-h-[44px]"
-              aria-label={`删除照片 ${idx + 1}`}
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-3 mb-3">
+          {photos.map((photo, idx) => (
+            <div
+              key={idx}
+              className="w-20 h-20 rounded-lg overflow-hidden relative group"
             >
-              <X className="w-4 h-4 text-white" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreviewIndex(idx)}
-              className="absolute inset-0 w-full h-full opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 flex items-center justify-center min-h-[44px]"
-              aria-label={`预览照片 ${idx + 1}`}
-            >
-              <ZoomIn className="w-6 h-6 text-white" />
-            </button>
-          </div>
-        ))}
+              {isValidDataUrl(photo) ? (
+                <img
+                  src={photo}
+                  alt={`照片 ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-navy-800 flex items-center justify-center">
+                  <Camera className="w-6 h-6 text-navy-600" />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => onRemove(idx)}
+                className="absolute top-1 right-1 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity min-h-[44px]"
+                aria-label={`删除照片 ${idx + 1}`}
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewIndex(idx)}
+                className="absolute inset-0 w-full h-full opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 flex items-center justify-center min-h-[44px]"
+                aria-label={`预览照片 ${idx + 1}`}
+              >
+                <ZoomIn className="w-6 h-6 text-white" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
-        {photos.length < maxPhotos && (
+      {photos.length < maxPhotos && (
+        <div className="flex gap-2">
           <button
             type="button"
-            onClick={handleUploadClick}
+            onClick={handleCameraClick}
             disabled={loading}
-            className="w-20 h-20 border-2 border-dashed border-navy-600 rounded-lg flex flex-col items-center justify-center gap-1 text-navy-600 transition-colors hover:border-ice-500/50 hover:text-ice-400 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 h-20 border-2 border-dashed border-navy-600 rounded-lg flex flex-col items-center justify-center gap-1 text-navy-600 transition-colors hover:border-ice-500/50 hover:text-ice-400 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
-              <RefreshCw className="w-6 h-6 animate-spin" />
+              <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
-              <Camera className="w-6 h-6" />
+              <Camera className="w-5 h-5" />
             )}
-            <span className="text-[10px]">{loading ? '处理中' : '拍摄'}</span>
+            <span className="text-xs">拍照</span>
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={handleAlbumClick}
+            disabled={loading}
+            className="flex-1 h-20 border-2 border-dashed border-navy-600 rounded-lg flex flex-col items-center justify-center gap-1 text-navy-600 transition-colors hover:border-ice-500/50 hover:text-ice-400 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ImageIcon className="w-5 h-5" />
+            <span className="text-xs">从相册选择</span>
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-2">
         {hint ? (
@@ -193,10 +213,17 @@ export default function PhotoUpload({
       </div>
 
       <input
-        ref={fileInputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
-        capture={capture ? 'environment' : undefined}
+        capture="environment"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <input
+        ref={albumInputRef}
+        type="file"
+        accept="image/*"
         onChange={handleFileChange}
         className="hidden"
       />

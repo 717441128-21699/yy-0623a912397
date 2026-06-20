@@ -16,6 +16,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Camera,
+  Filter,
+  List,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import type { HistoryRecord, DispatcherDecision } from '@/utils/types'
@@ -27,6 +32,13 @@ const formatDate = (dateStr: string): string => {
   const hours = String(date.getHours()).padStart(2, '0')
   const minutes = String(date.getMinutes()).padStart(2, '0')
   return `${month}-${day} ${hours}:${minutes}`
+}
+
+const formatTime = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
 }
 
 const getDecisionBadgeClass = (decision: DispatcherDecision): string => {
@@ -67,6 +79,8 @@ export default function History() {
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null)
   const [previewPhotos, setPreviewPhotos] = useState<string[]>([])
   const [previewIndex, setPreviewIndex] = useState(0)
+  const [filterPlate, setFilterPlate] = useState<string>('')
+  const [filterDecision, setFilterDecision] = useState<string>('')
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id)
@@ -96,7 +110,16 @@ export default function History() {
     setPreviewPhoto(previewPhotos[newIndex])
   }
 
-  const sortedRecords = [...historyRecords].sort(
+  const uniquePlates = [...new Set(historyRecords.map((r) => r.plateNumber))]
+
+  const filteredRecords = historyRecords.filter((record) => {
+    const plateMatch = filterPlate === '' || record.plateNumber === filterPlate
+    const decisionMatch =
+      filterDecision === '' || record.dispatcherResult.decision === filterDecision
+    return plateMatch && decisionMatch
+  })
+
+  const sortedRecords = [...filteredRecords].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   )
 
@@ -208,6 +231,40 @@ export default function History() {
                 </div>
               </div>
             </div>
+
+            {record.midRouteReadings && record.midRouteReadings.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-cool-100 text-sm font-medium">途中温度记录</h4>
+                <div className="bg-navy-900/50 rounded-lg p-3 space-y-2">
+                  {record.midRouteReadings.map((reading) => {
+                    const isHigher = reading.temperature > record.initialTemp
+                    const isLower = reading.temperature < record.initialTemp
+                    return (
+                      <div key={reading.id} className="flex items-start justify-between py-1">
+                        <div className="flex items-center gap-2">
+                          {isHigher ? (
+                            <TrendingUp className="w-4 h-4 text-warn-400" />
+                          ) : isLower ? (
+                            <TrendingDown className="w-4 h-4 text-ok-400" />
+                          ) : (
+                            <Minus className="w-4 h-4 text-navy-500" />
+                          )}
+                          <span className={`font-din font-semibold ${
+                            isHigher ? 'text-warn-400' : isLower ? 'text-ok-400' : 'text-cool-100'
+                          }`}>
+                            {reading.temperature}℃
+                          </span>
+                          {reading.note && (
+                            <span className="text-navy-600 text-sm ml-2">{reading.note}</span>
+                          )}
+                        </div>
+                        <span className="text-navy-600 text-xs">{formatTime(reading.createdAt)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <h4 className="text-cool-100 text-sm font-medium">补冷数据</h4>
@@ -361,6 +418,56 @@ export default function History() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-cool-50 text-lg font-semibold">应急处置记录</h1>
+        </div>
+      </div>
+
+      <div className="sticky top-[57px] z-10 bg-navy-900/95 backdrop-blur border-b border-navy-700/50 px-4 py-3">
+        <div className="flex items-center gap-2 mb-3">
+          <Filter className="w-4 h-4 text-ice-400" />
+          <span className="text-cool-100 text-sm font-medium">筛选</span>
+          <div className="flex-1" />
+          <List className="w-4 h-4 text-navy-600" />
+          <span className="text-navy-600 text-sm">共 {sortedRecords.length} 条记录</span>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <select
+              value={filterPlate}
+              onChange={(e) => setFilterPlate(e.target.value)}
+              className="input-field min-h-[44px] appearance-none cursor-pointer pr-10"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 12px center',
+                backgroundSize: '16px',
+              }}
+            >
+              <option value="">全部车牌</option>
+              {uniquePlates.map((plate) => (
+                <option key={plate} value={plate}>
+                  {plate}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <select
+              value={filterDecision}
+              onChange={(e) => setFilterDecision(e.target.value)}
+              className="input-field min-h-[44px] appearance-none cursor-pointer pr-10"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 12px center',
+                backgroundSize: '16px',
+              }}
+            >
+              <option value="">全部结论</option>
+              <option value="继续运输">继续运输</option>
+              <option value="换车">换车</option>
+              <option value="转入临时冷库">转入临时冷库</option>
+            </select>
+          </div>
         </div>
       </div>
 
