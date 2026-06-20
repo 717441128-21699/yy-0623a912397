@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/useAppStore'
 import { CHECKLIST_LABELS, type PlanType } from '@/utils/types'
+import { getTemperatureSummary } from '@/utils/dispatcher'
 import {
   ArrowLeft,
   Phone,
@@ -123,6 +124,10 @@ export default function NavigationExecution() {
   const chronologicalReadings = useMemo(() => {
     return [...midRouteReadings].reverse()
   }, [midRouteReadings])
+
+  const tempSummary = useMemo(() => {
+    return getTemperatureSummary(midRouteReadings, initialTemp)
+  }, [midRouteReadings, initialTemp])
 
   const latestReading = midRouteReadings.length > 0 ? midRouteReadings[0] : null
   const trendDirection = latestReading
@@ -317,37 +322,60 @@ export default function NavigationExecution() {
             </div>
           ) : (
             <>
-              {trendDirection && (
-                <div className="flex items-center gap-2 mb-4 px-1">
-                  <span className="text-xs text-cool-100">整体趋势</span>
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
-                    trendDirection === 'up'
+              <div className="mb-4 px-1">
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  <div className="text-center">
+                    <p className="text-xs text-cool-100 mb-1">初始温度</p>
+                    <p className="text-xl font-din font-bold text-ice-400">
+                      {tempSummary.initialTemp.toFixed(1)}<span className="text-xs ml-0.5 font-normal text-ice-400/70">℃</span>
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-cool-100 mb-1">最低温度</p>
+                    <p className="text-xl font-din font-bold text-ok-400">
+                      {tempSummary.minTemp.toFixed(1)}<span className="text-xs ml-0.5 font-normal text-ok-400/70">℃</span>
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-cool-100 mb-1">最高温度</p>
+                    <p className="text-xl font-din font-bold text-warn-400">
+                      {tempSummary.maxTemp.toFixed(1)}<span className="text-xs ml-0.5 font-normal text-warn-400/70">℃</span>
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-cool-100 mb-1">当前温度</p>
+                    <p className={`text-xl font-din font-bold ${
+                      tempSummary.lastTemp > tempSummary.initialTemp
+                        ? 'text-warn-400'
+                        : tempSummary.lastTemp < tempSummary.initialTemp
+                          ? 'text-ok-400'
+                          : 'text-cool-50'
+                    }`}>
+                      {tempSummary.lastTemp.toFixed(1)}<span className={`text-xs ml-0.5 font-normal ${
+                        tempSummary.lastTemp > tempSummary.initialTemp
+                          ? 'text-warn-400/70'
+                          : tempSummary.lastTemp < tempSummary.initialTemp
+                            ? 'text-ok-400/70'
+                            : 'text-cool-50/70'
+                      }`}>℃</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center">
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
+                    tempSummary.trendWorsening
                       ? 'bg-warn-500/20 text-warn-400'
-                      : trendDirection === 'down'
-                        ? 'bg-ok-500/20 text-ok-400'
-                        : 'bg-navy-700 text-cool-100'
+                      : 'bg-ok-500/20 text-ok-400'
                   }`}>
-                    {trendDirection === 'up' && (
-                      <>
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        较初始升高
-                      </>
+                    {tempSummary.trendWorsening ? (
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <TrendingDown className="w-3.5 h-3.5" />
                     )}
-                    {trendDirection === 'down' && (
-                      <>
-                        <TrendingDown className="w-3.5 h-3.5" />
-                        较初始降低
-                      </>
-                    )}
-                    {trendDirection === 'same' && (
-                      <>
-                        <Minus className="w-3.5 h-3.5" />
-                        与初始持平
-                      </>
-                    )}
+                    趋势: {tempSummary.trend}
                   </span>
                 </div>
-              )}
+              </div>
 
               <div className="relative pl-7">
                 <div className="absolute left-[11px] top-3 bottom-3 w-px bg-navy-700/50" />

@@ -37,6 +37,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '无需联系',
           contactPhone: '',
           notes: ['温度在安全范围内', '补冷量充足', '温度趋势稳定', '剩余里程较短'],
+          whyChosen: ['温度已恢复至安全范围', '补冷量充足，可持续保冷', '温度趋势向好，持续回落', '剩余里程较短，可在安全时间内到达', '综合评分高，风险可控'],
+          whyNotChosen: [],
         },
         {
           decision: '换车',
@@ -46,6 +48,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '调度中心',
           contactPhone: '400-888-1234',
           notes: [],
+          whyChosen: [],
+          whyNotChosen: ['温度已恢复，换车成本较高', '补冷后状态良好，换车非必要', '综合评分尚可，运输风险可接受'],
         },
         {
           decision: '转入临时冷库',
@@ -55,6 +59,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '附近合作冷库',
           contactPhone: '400-888-1234',
           notes: ['当前站点非合作冷库', '温度已恢复，可考虑继续运输'],
+          whyChosen: [],
+          whyNotChosen: ['当前位置非合作冷库，转库不便', '温度已恢复，无需入库', '补冷量充足，可继续运输', '剩余里程短，入库意义不大'],
         },
       ],
       needDispatcherConfirm: false,
@@ -73,7 +79,7 @@ const MOCK_HISTORY: HistoryRecord[] = [
         createdAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
       },
     ],
-    confirmStatus: [{ status: '已获准执行', updatedAt: new Date(Date.now() - 1000 * 60 * 15).toISOString() }],
+    confirmStatus: [{ status: '已获准执行', updatedAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(), remark: '调度员张工确认，可按计划继续行驶' }],
   },
   {
     id: 'history-mock-2',
@@ -109,6 +115,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '无需联系',
           contactPhone: '',
           notes: ['补冷量充足', '剩余里程较短'],
+          whyChosen: ['补冷量充足，可持续保冷', '剩余里程较短，可在安全时间内到达'],
+          whyNotChosen: ['温度尚未完全恢复至安全值'],
         },
         {
           decision: '换车',
@@ -118,6 +126,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '调度中心',
           contactPhone: '400-888-1234',
           notes: ['温度未恢复安全范围'],
+          whyChosen: ['温度未恢复至安全范围，货物有变质风险'],
+          whyNotChosen: ['距离目的地近，可直接送达', '综合评分尚可，运输风险可接受'],
         },
         {
           decision: '转入临时冷库',
@@ -127,6 +137,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '冷库管理员',
           contactPhone: '010-12345678',
           notes: ['附近有合作冷库', '可快速入库保障货物安全'],
+          whyChosen: ['附近有合作冷库，可快速入库', '温度未达标，需立即转入冷库', '冷库资源可靠，有合作协议'],
+          whyNotChosen: [],
         },
       ],
       needDispatcherConfirm: false,
@@ -139,7 +151,7 @@ const MOCK_HISTORY: HistoryRecord[] = [
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2 - 1000 * 60 * 40).toISOString(),
       },
     ],
-    confirmStatus: [{ status: '待确认', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() }],
+    confirmStatus: [{ status: '待确认', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), remark: '' }],
   },
   {
     id: 'history-mock-3',
@@ -175,6 +187,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '无需联系',
           contactPhone: '',
           notes: [],
+          whyChosen: [],
+          whyNotChosen: ['温度尚未完全恢复至安全值', '补冷量可能不够支撑全程', '温度趋势不稳定，有反弹风险', '剩余里程较长，途中风险不可控'],
         },
         {
           decision: '换车',
@@ -184,6 +198,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '调度中心',
           contactPhone: '400-888-1234',
           notes: ['温度未恢复安全范围', '补冷量不足', '温度趋势恶化', '剩余里程较长'],
+          whyChosen: ['温度未恢复至安全范围，货物有变质风险', '补冷量不足，无法支撑后续路程', '温度趋势恶化，继续运输风险高', '剩余里程较长，当前状态难以支撑', '综合评分低，运输风险高', '当前站点保障能力有限'],
+          whyNotChosen: [],
         },
         {
           decision: '转入临时冷库',
@@ -193,6 +209,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
           contactPerson: '附近合作冷库',
           contactPhone: '400-888-1234',
           notes: ['当前站点非合作冷库'],
+          whyChosen: ['温度未达标，需立即转入冷库', '温度持续上升，必须紧急处置'],
+          whyNotChosen: ['当前位置非合作冷库，转库不便'],
         },
       ],
       needDispatcherConfirm: true,
@@ -218,8 +236,8 @@ const MOCK_HISTORY: HistoryRecord[] = [
       },
     ],
     confirmStatus: [
-      { status: '已联系', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString() },
-      { status: '等待回复', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
+      { status: '已联系', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), remark: '已致电调度中心李姐，正在核实车况' },
+      { status: '等待回复', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), remark: '调度员正在联系备用车辆，预计30分钟回复' },
     ],
   },
 ]
@@ -281,7 +299,7 @@ interface AppState {
   addToHistory: () => void
   loadHistory: () => void
   addMidRouteReading: (temp: number, note: string) => void
-  updateConfirmStatus: (status: DispatchConfirmStatus) => void
+  updateConfirmStatus: (status: DispatchConfirmStatus, remark?: string) => void
 
   resetAll: () => void
 }
@@ -424,9 +442,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       return { midRouteReadings: [reading, ...s.midRouteReadings] }
     }),
-  updateConfirmStatus: (status) => {
+  updateConfirmStatus: (status, remark = '') => {
     const state = get()
-    const entry: ConfirmStatusEntry = { status, updatedAt: new Date().toISOString() }
+    const entry: ConfirmStatusEntry = { status, updatedAt: new Date().toISOString(), remark: remark || '' }
     const nextConfirmStatus = [...state.confirmStatus, entry]
     const nextRecords = state.historyRecords.length > 0
       ? state.historyRecords.map((r, i) =>

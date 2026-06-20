@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { CHECKLIST_LABELS, SUPPLEMENT_UNITS, type SupplementUnit, SAFE_TEMPERATURES, type DispatchConfirmStatus, type TemperatureTrend } from '@/utils/types'
 import PhotoUpload from '@/components/PhotoUpload'
@@ -44,6 +45,9 @@ export default function Receipt() {
     confirmStatus,
     updateConfirmStatus,
   } = useAppStore()
+
+  const [confirmRemark, setConfirmRemark] = useState('')
+  const [showRemarkInput, setShowRemarkInput] = useState(false)
 
   const allCompleted = checklistCompleted.every(Boolean)
 
@@ -435,23 +439,6 @@ export default function Receipt() {
               <h3 className="text-cool-100 text-sm font-medium mb-3">调度确认状态</h3>
               {dispatcherResult.needDispatcherConfirm ? (
                 <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-cool-100 text-sm">当前状态:</span>
-                    {(() => {
-                      const currentEntry = confirmStatus.length > 0 ? confirmStatus[confirmStatus.length - 1] : null
-                      const currentStatusLabel = currentEntry?.status || '待确认'
-                      const badgeClass =
-                        currentStatusLabel === '待确认' ? 'bg-warn-500/20 text-warn-400 border-warn-500/30' :
-                        currentStatusLabel === '已联系' ? 'bg-ice-500/20 text-ice-400 border-ice-500/30' :
-                        currentStatusLabel === '等待回复' ? 'bg-warn-500/20 text-warn-400 border-warn-500/30' :
-                        'bg-ok-500/20 text-ok-400 border-ok-500/30'
-                      return (
-                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${badgeClass}`}>
-                          {currentStatusLabel}
-                        </span>
-                      )
-                    })()}
-                  </div>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {([
                       { label: '已联系调度', value: '已联系' as DispatchConfirmStatus },
@@ -463,7 +450,14 @@ export default function Receipt() {
                       return (
                         <button
                           key={btn.value}
-                          onClick={() => updateConfirmStatus(btn.value)}
+                          onClick={() => {
+                            const remark = showRemarkInput ? confirmRemark : ''
+                            updateConfirmStatus(btn.value, remark)
+                            if (showRemarkInput) {
+                              setConfirmRemark('')
+                              setShowRemarkInput(false)
+                            }
+                          }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px] ${
                             isActive
                               ? 'bg-ice-500 text-navy-900'
@@ -475,10 +469,80 @@ export default function Receipt() {
                       )
                     })}
                   </div>
+
+                  {!showRemarkInput ? (
+                    <button
+                      onClick={() => setShowRemarkInput(true)}
+                      className="text-xs text-ice-400 hover:text-ice-300 mb-3 min-h-[32px]"
+                    >
+                      + 添加备注
+                    </button>
+                  ) : (
+                    <div className="mb-3">
+                      <textarea
+                        value={confirmRemark}
+                        onChange={(e) => setConfirmRemark(e.target.value)}
+                        rows={3}
+                        className="input-field w-full mb-2 text-sm"
+                        placeholder="请输入联系备注或调度说明..."
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const currentStatus = confirmStatus.length > 0
+                              ? confirmStatus[confirmStatus.length - 1].status
+                              : '待确认'
+                            if (confirmRemark.trim()) {
+                              updateConfirmStatus(currentStatus, confirmRemark.trim())
+                              setConfirmRemark('')
+                              setShowRemarkInput(false)
+                            }
+                          }}
+                          className="btn-ice text-xs px-3 py-1.5 min-h-[36px]"
+                        >
+                          保存备注
+                        </button>
+                        <button
+                          onClick={() => {
+                            setConfirmRemark('')
+                            setShowRemarkInput(false)
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-navy-700/60 text-cool-100 min-h-[36px]"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {confirmStatus.length > 0 && (
-                    <p className="text-navy-500 text-xs">
-                      最近更新: {new Date(confirmStatus[confirmStatus.length - 1].updatedAt).toLocaleString('zh-CN')}
-                    </p>
+                    <div className="space-y-2 mt-3 pt-3 border-t border-navy-700/50">
+                      <p className="text-xs text-navy-500 mb-2">状态历史</p>
+                      {[...confirmStatus].reverse().map((entry, idx) => {
+                        const badgeClass =
+                          entry.status === '待确认' ? 'bg-warn-500/20 text-warn-400 border-warn-500/30' :
+                          entry.status === '已联系' ? 'bg-ice-500/20 text-ice-400 border-ice-500/30' :
+                          entry.status === '等待回复' ? 'bg-warn-500/20 text-warn-400 border-warn-500/30' :
+                          'bg-ok-500/20 text-ok-400 border-ok-500/30'
+                        return (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full border shrink-0 mt-0.5 ${badgeClass}`}>
+                              {entry.status}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-navy-500">
+                                {new Date(entry.updatedAt).toLocaleString('zh-CN')}
+                              </p>
+                              {entry.remark && (
+                                <p className="text-xs text-cool-100 mt-1 break-words">
+                                  {entry.remark}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </>
               ) : (

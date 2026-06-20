@@ -15,6 +15,16 @@ export type DispatchConfirmStatus = '待确认' | '已联系' | '等待回复' |
 export interface ConfirmStatusEntry {
   status: DispatchConfirmStatus
   updatedAt: string
+  remark: string
+}
+
+export interface TemperatureSummary {
+  initialTemp: number
+  minTemp: number
+  maxTemp: number
+  lastTemp: number
+  trend: TemperatureTrend
+  trendWorsening: boolean
 }
 
 export interface MidRouteReading {
@@ -32,6 +42,8 @@ export interface PlanRecommendation {
   contactPerson: string
   contactPhone: string
   notes: string[]
+  whyChosen: string[]
+  whyNotChosen: string[]
 }
 
 export interface DispatcherResult {

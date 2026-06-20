@@ -26,7 +26,7 @@ import {
   Warehouse,
 } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import type { HistoryRecord, DispatcherDecision, DispatchConfirmStatus, TemperatureTrend } from '@/utils/types'
+import type { HistoryRecord, DispatcherDecision, DispatchConfirmStatus, TemperatureTrend, PlanRecommendation } from '@/utils/types'
 
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr)
@@ -115,9 +115,20 @@ export default function History() {
   const [previewIndex, setPreviewIndex] = useState(0)
   const [filterPlate, setFilterPlate] = useState<string>('')
   const [filterDecision, setFilterDecision] = useState<string>('')
+  const [remarkInput, setRemarkInput] = useState<string>('')
+  const [expandedPlanReasons, setExpandedPlanReasons] = useState<Record<string, boolean>>({})
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id)
+    setRemarkInput('')
+  }
+
+  const togglePlanReasons = (recordId: string, planDecision: string) => {
+    const key = `${recordId}-${planDecision}`
+    setExpandedPlanReasons((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
   }
 
   const openPreview = (photos: string[], index: number) => {
@@ -157,12 +168,31 @@ export default function History() {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   )
 
+  const getTempSummary = (record: HistoryRecord) => {
+    const initialTemp = record.initialTemp
+    const readings = record.midRouteReadings || []
+    const allTemps = [initialTemp, ...readings.map((r) => r.temperature)]
+    const minTemp = Math.min(...allTemps)
+    const maxTemp = Math.max(...allTemps)
+    const lastTemp = readings.length > 0 ? readings[readings.length - 1].temperature : initialTemp
+    return { initialTemp, minTemp, maxTemp, lastTemp }
+  }
+
+  const handleUpdateStatus = (status: DispatchConfirmStatus) => {
+    updateConfirmStatus(status, remarkInput)
+    setRemarkInput('')
+  }
+
   const renderRecordCard = (record: HistoryRecord) => {
     const isExpanded = expandedId === record.id
     const latestConfirm = record.confirmStatus.length > 0
       ? record.confirmStatus[record.confirmStatus.length - 1]
       : null
     const canUpdateConfirm = latestConfirm && latestConfirm.status !== '已获准执行'
+    const tempSummary = getTempSummary(record)
+    const sortedConfirmStatus = [...record.confirmStatus].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )
 
     return (
       <div key={record.id} className="card-dark">
@@ -274,41 +304,71 @@ export default function History() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <h4 className="text-cool-100 text-sm font-medium">途中温度记录</h4>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getTrendBadgeClass(record.dispatcherResult.temperatureTrend)}`}>
-                    {record.dispatcherResult.temperatureTrend}
-                  </span>
                 </div>
-                <div className="bg-navy-900/50 rounded-lg p-3 space-y-2">
-                  {record.midRouteReadings.map((reading, idx) => {
-                    const prevTemp = idx === 0 ? record.initialTemp : record.midRouteReadings[idx - 1].temperature
-                    const isHigher = reading.temperature > prevTemp
-                    const isLower = reading.temperature < prevTemp
-                    return (
-                      <div key={reading.id} className="flex items-start justify-between py-1">
-                        <div className="flex items-center gap-2">
-                          {isHigher ? (
-                            <TrendingUp className="w-4 h-4 text-warn-400" />
-                          ) : isLower ? (
-                            <TrendingDown className="w-4 h-4 text-ok-400" />
-                          ) : (
-                            <Minus className="w-4 h-4 text-navy-500" />
-                          )}
-                          <span className={`font-din font-semibold ${
-                            isHigher ? 'text-warn-400' : isLower ? 'text-ok-400' : 'text-cool-100'
-                          }`}>
-                            {reading.temperature}℃
-                          </span>
-                          <span className="text-navy-600 text-xs">
-                            {isHigher ? `↑${(reading.temperature - prevTemp).toFixed(1)}` : isLower ? `↓${(prevTemp - reading.temperature).toFixed(1)}` : '-0.0'}
-                          </span>
-                          {reading.note && (
-                            <span className="text-navy-600 text-sm ml-2">{reading.note}</span>
-                          )}
-                        </div>
-                        <span className="text-navy-600 text-xs">{formatTime(reading.createdAt)}</span>
+                <div className="bg-navy-900/50 rounded-lg p-3 space-y-3">
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="text-center">
+                      <span className="text-navy-600 text-xs">初始</span>
+                      <div className="text-cool-100 font-din font-semibold text-sm mt-0.5">
+                        {tempSummary.initialTemp}℃
                       </div>
-                    )
-                  })}
+                    </div>
+                    <div className="text-center">
+                      <span className="text-navy-600 text-xs">最低</span>
+                      <div className="text-ok-400 font-din font-semibold text-sm mt-0.5">
+                        {tempSummary.minTemp}℃
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <span className="text-navy-600 text-xs">最高</span>
+                      <div className="text-warn-400 font-din font-semibold text-sm mt-0.5">
+                        {tempSummary.maxTemp}℃
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <span className="text-navy-600 text-xs">最后</span>
+                      <div className="text-cool-100 font-din font-semibold text-sm mt-0.5">
+                        {tempSummary.lastTemp}℃
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-center">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getTrendBadgeClass(record.dispatcherResult.temperatureTrend)}`}>
+                      {record.dispatcherResult.temperatureTrend}
+                    </span>
+                  </div>
+                  <div className="border-t border-navy-700/50 pt-2 space-y-2">
+                    {record.midRouteReadings.map((reading, idx) => {
+                      const prevTemp = idx === 0 ? record.initialTemp : record.midRouteReadings[idx - 1].temperature
+                      const isHigher = reading.temperature > prevTemp
+                      const isLower = reading.temperature < prevTemp
+                      return (
+                        <div key={reading.id} className="flex items-start justify-between py-1">
+                          <div className="flex items-center gap-2">
+                            {isHigher ? (
+                              <TrendingUp className="w-4 h-4 text-warn-400" />
+                            ) : isLower ? (
+                              <TrendingDown className="w-4 h-4 text-ok-400" />
+                            ) : (
+                              <Minus className="w-4 h-4 text-navy-500" />
+                            )}
+                            <span className={`font-din font-semibold ${
+                              isHigher ? 'text-warn-400' : isLower ? 'text-ok-400' : 'text-cool-100'
+                            }`}>
+                              {reading.temperature}℃
+                            </span>
+                            <span className="text-navy-600 text-xs">
+                              {isHigher ? `↑${(reading.temperature - prevTemp).toFixed(1)}` : isLower ? `↓${(prevTemp - reading.temperature).toFixed(1)}` : '-0.0'}
+                            </span>
+                            {reading.note && (
+                              <span className="text-navy-600 text-sm ml-2">{reading.note}</span>
+                            )}
+                          </div>
+                          <span className="text-navy-600 text-xs">{formatTime(reading.createdAt)}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -449,8 +509,10 @@ export default function History() {
                 {record.dispatcherResult.plans && record.dispatcherResult.plans.length > 0 && (
                   <div className="space-y-3">
                     <h4 className="text-cool-100 text-sm font-medium">方案风险对比</h4>
-                    {record.dispatcherResult.plans.map((plan) => {
+                    {record.dispatcherResult.plans.map((plan: PlanRecommendation) => {
                       const isRecommended = plan.decision === record.dispatcherResult.decision
+                      const planKey = `${record.id}-${plan.decision}`
+                      const isExpandedReason = isRecommended || expandedPlanReasons[planKey]
                       const riskBadgeClass =
                         plan.riskLevel === '低风险'
                           ? 'bg-ok-500/20 text-ok-400 border-ok-500/30'
@@ -469,6 +531,9 @@ export default function History() {
                           : plan.decision === '换车'
                           ? 'bg-warn-500'
                           : 'bg-ice-500'
+
+                      const whyChosenList = plan.whyChosen || []
+                      const whyNotChosenList = plan.whyNotChosen || []
 
                       return (
                         <div
@@ -509,7 +574,7 @@ export default function History() {
                             </a>
                           )}
                           {plan.notes.length > 0 && (
-                            <ul className="space-y-1">
+                            <ul className="space-y-1 mb-2">
                               {plan.notes.map((note, idx) => (
                                 <li key={idx} className="flex items-start gap-2 text-navy-500 text-xs">
                                   <span className="text-navy-600 mt-0.5">•</span>
@@ -517,6 +582,63 @@ export default function History() {
                                 </li>
                               ))}
                             </ul>
+                          )}
+
+                          {(whyChosenList.length > 0 || whyNotChosenList.length > 0) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => togglePlanReasons(record.id, plan.decision)}
+                                className="flex items-center gap-1 text-ice-400 text-xs font-medium min-h-[32px] hover:text-ice-300 transition-colors"
+                              >
+                                {isExpandedReason ? (
+                                  <>
+                                    收起原因
+                                    <ChevronUp className="w-3 h-3" />
+                                  </>
+                                ) : (
+                                  <>
+                                    展开原因
+                                    <ChevronDown className="w-3 h-3" />
+                                  </>
+                                )}
+                              </button>
+
+                              <div
+                                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                                  isExpandedReason ? 'max-h-[1000px] opacity-100 mt-2' : 'max-h-0 opacity-0'
+                                }`}
+                              >
+                                <div className="space-y-3">
+                                  {whyChosenList.length > 0 && (
+                                    <div className="space-y-1">
+                                      <span className="text-ok-400 text-xs font-medium">为什么推荐</span>
+                                      <ul className="space-y-1">
+                                        {whyChosenList.map((reason, idx) => (
+                                          <li key={idx} className="flex items-start gap-2 text-cool-100 text-xs">
+                                            <CheckCircle className="w-3.5 h-3.5 text-ok-400 mt-0.5 shrink-0" />
+                                            <span>{reason}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  {whyNotChosenList.length > 0 && (
+                                    <div className="space-y-1">
+                                      <span className="text-warn-400 text-xs font-medium">为什么不选</span>
+                                      <ul className="space-y-1">
+                                        {whyNotChosenList.map((reason, idx) => (
+                                          <li key={idx} className="flex items-start gap-2 text-cool-100 text-xs">
+                                            <XCircle className="w-3.5 h-3.5 text-warn-400 mt-0.5 shrink-0" />
+                                            <span>{reason}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </>
                           )}
                         </div>
                       )
@@ -545,12 +667,17 @@ export default function History() {
                 <div className="bg-navy-900/50 rounded-lg p-3 space-y-3">
                   {record.confirmStatus.length > 0 ? (
                     <div className="space-y-2">
-                      {record.confirmStatus.map((entry, idx) => (
-                        <div key={idx} className="flex items-center justify-between py-1">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getConfirmBadgeClass(entry.status)}`}>
-                            {entry.status}
-                          </span>
-                          <span className="text-navy-600 text-xs">{formatDate(entry.updatedAt)}</span>
+                      {sortedConfirmStatus.map((entry, idx) => (
+                        <div key={idx} className="py-2 border-b border-navy-700/50 last:border-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getConfirmBadgeClass(entry.status)}`}>
+                              {entry.status}
+                            </span>
+                            <span className="text-navy-600 text-xs">{formatDate(entry.updatedAt)}</span>
+                          </div>
+                          {entry.remark && (
+                            <p className="text-cool-200 text-xs ml-1">{entry.remark}</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -558,28 +685,39 @@ export default function History() {
                     <p className="text-navy-600 text-sm">暂无确认记录</p>
                   )}
                   {canUpdateConfirm && (
-                    <div className="flex gap-2 pt-2 border-t border-navy-700/50">
-                      <button
-                        type="button"
-                        onClick={() => updateConfirmStatus('已联系')}
-                        className="flex-1 py-2 rounded-lg bg-ice-500/20 text-ice-400 text-sm font-medium min-h-[44px] hover:bg-ice-500/30 transition-colors"
-                      >
-                        标记已联系
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateConfirmStatus('等待回复')}
-                        className="flex-1 py-2 rounded-lg bg-warn-500/20 text-warn-400 text-sm font-medium min-h-[44px] hover:bg-warn-500/30 transition-colors"
-                      >
-                        标记等待回复
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateConfirmStatus('已获准执行')}
-                        className="flex-1 py-2 rounded-lg bg-ok-500/20 text-ok-400 text-sm font-medium min-h-[44px] hover:bg-ok-500/30 transition-colors"
-                      >
-                        标记已获准
-                      </button>
+                    <div className="pt-2 border-t border-navy-700/50 space-y-3">
+                      <div className="space-y-1">
+                        <span className="text-navy-600 text-xs">备注</span>
+                        <textarea
+                          value={remarkInput}
+                          onChange={(e) => setRemarkInput(e.target.value)}
+                          placeholder="添加备注信息..."
+                          className="input-field min-h-[80px] text-sm resize-none"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus('已联系')}
+                          className="flex-1 py-2 rounded-lg bg-ice-500/20 text-ice-400 text-sm font-medium min-h-[44px] hover:bg-ice-500/30 transition-colors"
+                        >
+                          标记已联系
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus('等待回复')}
+                          className="flex-1 py-2 rounded-lg bg-warn-500/20 text-warn-400 text-sm font-medium min-h-[44px] hover:bg-warn-500/30 transition-colors"
+                        >
+                          标记等待回复
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus('已获准执行')}
+                          className="flex-1 py-2 rounded-lg bg-ok-500/20 text-ok-400 text-sm font-medium min-h-[44px] hover:bg-ok-500/30 transition-colors"
+                        >
+                          标记已获准
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
