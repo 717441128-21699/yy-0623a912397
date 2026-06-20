@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { CargoType, PlanType, SupplementUnit, DispatcherDecision, SupplementPlan, DispatcherResult, HistoryRecord, MidRouteReading } from '@/utils/types'
+import type { CargoType, PlanType, SupplementUnit, DispatcherDecision, SupplementPlan, DispatcherResult, HistoryRecord, MidRouteReading, ConfirmStatusEntry, DispatchConfirmStatus, TemperatureTrend } from '@/utils/types'
 import { getDispatcherDecision } from '@/utils/dispatcher'
 
 const MOCK_HISTORY: HistoryRecord[] = [
@@ -25,6 +25,7 @@ const MOCK_HISTORY: HistoryRecord[] = [
       supplementOk: true,
       siteReliable: true,
       distanceOk: true,
+      temperatureTrend: '持续下降',
       temperatureTrendWorsening: false,
       score: 92,
       plans: [
@@ -72,6 +73,7 @@ const MOCK_HISTORY: HistoryRecord[] = [
         createdAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
       },
     ],
+    confirmStatus: [{ status: '已获准执行', updatedAt: new Date(Date.now() - 1000 * 60 * 15).toISOString() }],
   },
   {
     id: 'history-mock-2',
@@ -95,6 +97,7 @@ const MOCK_HISTORY: HistoryRecord[] = [
       supplementOk: true,
       siteReliable: true,
       distanceOk: true,
+      temperatureTrend: '持续下降',
       temperatureTrendWorsening: false,
       score: 65,
       plans: [
@@ -136,6 +139,7 @@ const MOCK_HISTORY: HistoryRecord[] = [
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2 - 1000 * 60 * 40).toISOString(),
       },
     ],
+    confirmStatus: [{ status: '待确认', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() }],
   },
   {
     id: 'history-mock-3',
@@ -159,6 +163,7 @@ const MOCK_HISTORY: HistoryRecord[] = [
       supplementOk: false,
       siteReliable: false,
       distanceOk: false,
+      temperatureTrend: '先降后升',
       temperatureTrendWorsening: true,
       score: 35,
       plans: [
@@ -212,6 +217,10 @@ const MOCK_HISTORY: HistoryRecord[] = [
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 7).toISOString(),
       },
     ],
+    confirmStatus: [
+      { status: '已联系', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString() },
+      { status: '等待回复', updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
+    ],
   },
 ]
 
@@ -247,6 +256,7 @@ interface AppState {
   historyRecords: HistoryRecord[]
   navigationArrived: boolean
   midRouteReadings: MidRouteReading[]
+  confirmStatus: ConfirmStatusEntry[]
 
   setPlateNumber: (v: string) => void
   setCargoType: (v: CargoType) => void
@@ -271,6 +281,7 @@ interface AppState {
   addToHistory: () => void
   loadHistory: () => void
   addMidRouteReading: (temp: number, note: string) => void
+  updateConfirmStatus: (status: DispatchConfirmStatus) => void
 
   resetAll: () => void
 }
@@ -295,6 +306,7 @@ const initialState = {
   historyRecords: [] as HistoryRecord[],
   navigationArrived: false,
   midRouteReadings: [] as MidRouteReading[],
+  confirmStatus: [] as ConfirmStatusEntry[],
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -384,12 +396,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         supplementOk: true,
         siteReliable: true,
         distanceOk: true,
+        temperatureTrend: '无变化' as TemperatureTrend,
         temperatureTrendWorsening: false,
         score: 0,
         plans: [],
         needDispatcherConfirm: false,
       },
       midRouteReadings: state.midRouteReadings,
+      confirmStatus: state.confirmStatus,
     }
     const nextRecords = [record, ...state.historyRecords]
     set({ historyRecords: nextRecords })
@@ -410,6 +424,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       return { midRouteReadings: [reading, ...s.midRouteReadings] }
     }),
+  updateConfirmStatus: (status) => {
+    const state = get()
+    const entry: ConfirmStatusEntry = { status, updatedAt: new Date().toISOString() }
+    const nextConfirmStatus = [...state.confirmStatus, entry]
+    const nextRecords = state.historyRecords.length > 0
+      ? state.historyRecords.map((r, i) =>
+          i === 0 ? { ...r, confirmStatus: nextConfirmStatus } : r
+        )
+      : state.historyRecords
+    set({ confirmStatus: nextConfirmStatus, historyRecords: nextRecords })
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cold-chain-history', JSON.stringify(nextRecords))
+    }
+  },
 
   resetAll: () =>
     set({

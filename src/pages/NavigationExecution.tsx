@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   TrendingUp,
   TrendingDown,
+  Minus,
 } from 'lucide-react'
 
 const STEP_ICONS = [Car, Phone, Snowflake, Thermometer]
@@ -118,6 +119,19 @@ export default function NavigationExecution() {
   }
 
   const initialTemp = typeof currentTemp === 'number' ? currentTemp : 0
+
+  const chronologicalReadings = useMemo(() => {
+    return [...midRouteReadings].reverse()
+  }, [midRouteReadings])
+
+  const latestReading = midRouteReadings.length > 0 ? midRouteReadings[0] : null
+  const trendDirection = latestReading
+    ? latestReading.temperature > initialTemp
+      ? 'up' as const
+      : latestReading.temperature < initialTemp
+        ? 'down' as const
+        : 'same' as const
+    : null
 
   if (!selectedPlan) {
     return (
@@ -302,43 +316,117 @@ export default function NavigationExecution() {
               <p className="text-sm text-navy-600">暂无途中记录，温度异常时可随时记录</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {midRouteReadings.map((reading) => {
-                const isHigher = reading.temperature > initialTemp
-                const isLower = reading.temperature < initialTemp
-                return (
-                  <div
-                    key={reading.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-navy-900/40 border border-navy-700/30"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                        isHigher ? 'bg-warn-500/20' : isLower ? 'bg-ok-500/20' : 'bg-navy-700'
-                      }`}>
-                        {isHigher ? (
-                          <TrendingUp className="w-4 h-4 text-warn-400" />
-                        ) : isLower ? (
-                          <TrendingDown className="w-4 h-4 text-ok-400" />
-                        ) : (
-                          <Thermometer className="w-4 h-4 text-cool-100" />
-                        )}
+            <>
+              {trendDirection && (
+                <div className="flex items-center gap-2 mb-4 px-1">
+                  <span className="text-xs text-cool-100">整体趋势</span>
+                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
+                    trendDirection === 'up'
+                      ? 'bg-warn-500/20 text-warn-400'
+                      : trendDirection === 'down'
+                        ? 'bg-ok-500/20 text-ok-400'
+                        : 'bg-navy-700 text-cool-100'
+                  }`}>
+                    {trendDirection === 'up' && (
+                      <>
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        较初始升高
+                      </>
+                    )}
+                    {trendDirection === 'down' && (
+                      <>
+                        <TrendingDown className="w-3.5 h-3.5" />
+                        较初始降低
+                      </>
+                    )}
+                    {trendDirection === 'same' && (
+                      <>
+                        <Minus className="w-3.5 h-3.5" />
+                        与初始持平
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              <div className="relative pl-7">
+                <div className="absolute left-[11px] top-3 bottom-3 w-px bg-navy-700/50" />
+
+                <div className="relative pb-3">
+                  <div className="absolute left-[-17px] top-1.5 w-[12px] h-[12px] rounded-full bg-ice-500 border-2 border-navy-900 z-10" />
+                  <div className="rounded-lg bg-navy-900/60 border border-navy-700/30 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-din font-bold text-lg text-ice-400">
+                          {initialTemp.toFixed(1)}<span className="text-sm ml-0.5 font-normal text-ice-400/70">℃</span>
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-ice-500/10 text-ice-400/70">初始</span>
                       </div>
-                      <div>
-                        <p className={`font-din font-bold text-lg ${
-                          isHigher ? 'text-warn-400' : isLower ? 'text-ok-400' : 'text-cool-50'
-                        }`}>
-                          {reading.temperature.toFixed(1)}<span className="text-sm ml-0.5 font-normal">℃</span>
-                        </p>
+                    </div>
+                  </div>
+                </div>
+
+                {chronologicalReadings.map((reading, idx) => {
+                  const prevTemp = idx === 0 ? initialTemp : chronologicalReadings[idx - 1].temperature
+                  const diff = reading.temperature - prevTemp
+                  const isHigher = diff > 0
+                  const isLower = diff < 0
+                  const isSame = diff === 0
+
+                  const lineColor = isHigher
+                    ? 'bg-warn-500/70'
+                    : isLower
+                      ? 'bg-ok-500/70'
+                      : 'bg-navy-600'
+
+                  const dotColor = isHigher
+                    ? 'bg-warn-500'
+                    : isLower
+                      ? 'bg-ok-500'
+                      : 'bg-navy-600'
+
+                  const tempColor = isHigher
+                    ? 'text-warn-400'
+                    : isLower
+                      ? 'text-ok-400'
+                      : 'text-cool-50'
+
+                  return (
+                    <div key={reading.id} className="relative pb-3">
+                      <div className={`absolute left-[-17px] top-1.5 w-[12px] h-[12px] rounded-full ${dotColor} border-2 border-navy-900 z-10`} />
+                      {idx < chronologicalReadings.length - 1 && (
+                        <div className={`absolute left-[-12px] top-[18px] bottom-0 w-px ${lineColor}`} />
+                      )}
+                      <div className="rounded-lg bg-navy-900/40 border border-navy-700/30 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-din font-bold text-lg ${tempColor}`}>
+                              {reading.temperature.toFixed(1)}<span className="text-sm ml-0.5 font-normal opacity-70">℃</span>
+                            </span>
+                            {isHigher && (
+                              <TrendingUp className="w-4 h-4 text-warn-400" />
+                            )}
+                            {isLower && (
+                              <TrendingDown className="w-4 h-4 text-ok-400" />
+                            )}
+                            {isSame && (
+                              <Minus className="w-4 h-4 text-cool-100" />
+                            )}
+                            <span className={`text-xs font-din ${tempColor}`}>
+                              {isHigher ? '+' : ''}{diff.toFixed(1)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-navy-500 font-din">{formatTime(reading.createdAt)}</p>
+                        </div>
                         {reading.note && (
-                          <p className="text-xs text-cool-100 mt-0.5">{reading.note}</p>
+                          <p className="text-xs text-cool-100 mt-1.5">{reading.note}</p>
                         )}
                       </div>
                     </div>
-                    <p className="text-xs text-navy-500 font-din">{formatTime(reading.createdAt)}</p>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>

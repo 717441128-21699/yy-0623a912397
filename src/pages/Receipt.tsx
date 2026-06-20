@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/useAppStore'
-import { CHECKLIST_LABELS, SUPPLEMENT_UNITS, type SupplementUnit, SAFE_TEMPERATURES } from '@/utils/types'
+import { CHECKLIST_LABELS, SUPPLEMENT_UNITS, type SupplementUnit, SAFE_TEMPERATURES, type DispatchConfirmStatus, type TemperatureTrend } from '@/utils/types'
 import PhotoUpload from '@/components/PhotoUpload'
 import {
   Check,
@@ -41,6 +41,8 @@ export default function Receipt() {
     currentTemp,
     toggleChecklist,
     cargoType,
+    confirmStatus,
+    updateConfirmStatus,
   } = useAppStore()
 
   const allCompleted = checklistCompleted.every(Boolean)
@@ -265,12 +267,23 @@ export default function Receipt() {
             <div className="card-dark">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-navy-600 text-sm">综合评分</span>
-                <span className={`font-din font-bold text-2xl ${
-                  dispatcherResult.score >= 80 ? 'text-ok-400' :
-                  dispatcherResult.score >= 60 ? 'text-ice-400' : 'text-warn-400'
-                }`}>
-                  {dispatcherResult.score}<span className="text-sm text-navy-600 font-normal">/100</span>
-                </span>
+                <div className="flex items-center gap-2">
+                  {dispatcherResult.temperatureTrend && dispatcherResult.temperatureTrend !== '无变化' && (
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
+                      (dispatcherResult.temperatureTrend === '持续升高' || dispatcherResult.temperatureTrend === '先降后升' || dispatcherResult.temperatureTrend === '波动')
+                        ? 'bg-warn-500/20 text-warn-400 border-warn-500/30'
+                        : 'bg-ok-500/20 text-ok-400 border-ok-500/30'
+                    }`}>
+                      趋势: {dispatcherResult.temperatureTrend}
+                    </span>
+                  )}
+                  <span className={`font-din font-bold text-2xl ${
+                    dispatcherResult.score >= 80 ? 'text-ok-400' :
+                    dispatcherResult.score >= 60 ? 'text-ice-400' : 'text-warn-400'
+                  }`}>
+                    {dispatcherResult.score}<span className="text-sm text-navy-600 font-normal">/100</span>
+                  </span>
+                </div>
               </div>
               <div className="w-full h-2 bg-navy-700 rounded-full overflow-hidden">
                 <div
@@ -317,6 +330,16 @@ export default function Receipt() {
                     <XCircle className="w-4 h-4 text-warn-400" />
                   )}
                   <span className="text-cool-100 text-sm">距离合理</span>
+                </div>
+                <div className="flex items-center gap-2 col-span-2">
+                  {!dispatcherResult.temperatureTrendWorsening ? (
+                    <CheckCircle className="w-4 h-4 text-ok-400" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-warn-400" />
+                  )}
+                  <span className="text-cool-100 text-sm">
+                    {dispatcherResult.temperatureTrendWorsening ? '趋势恶化' : '趋势向好'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -406,6 +429,64 @@ export default function Receipt() {
                   </div>
                 )
               })}
+            </div>
+
+            <div className="card-dark">
+              <h3 className="text-cool-100 text-sm font-medium mb-3">调度确认状态</h3>
+              {dispatcherResult.needDispatcherConfirm ? (
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-cool-100 text-sm">当前状态:</span>
+                    {(() => {
+                      const currentEntry = confirmStatus.length > 0 ? confirmStatus[confirmStatus.length - 1] : null
+                      const currentStatusLabel = currentEntry?.status || '待确认'
+                      const badgeClass =
+                        currentStatusLabel === '待确认' ? 'bg-warn-500/20 text-warn-400 border-warn-500/30' :
+                        currentStatusLabel === '已联系' ? 'bg-ice-500/20 text-ice-400 border-ice-500/30' :
+                        currentStatusLabel === '等待回复' ? 'bg-warn-500/20 text-warn-400 border-warn-500/30' :
+                        'bg-ok-500/20 text-ok-400 border-ok-500/30'
+                      return (
+                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${badgeClass}`}>
+                          {currentStatusLabel}
+                        </span>
+                      )
+                    })()}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {([
+                      { label: '已联系调度', value: '已联系' as DispatchConfirmStatus },
+                      { label: '等待回复中', value: '等待回复' as DispatchConfirmStatus },
+                      { label: '已获准执行', value: '已获准执行' as DispatchConfirmStatus },
+                    ]).map((btn) => {
+                      const currentStatusLabel = confirmStatus.length > 0 ? confirmStatus[confirmStatus.length - 1].status : '待确认'
+                      const isActive = currentStatusLabel === btn.value
+                      return (
+                        <button
+                          key={btn.value}
+                          onClick={() => updateConfirmStatus(btn.value)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px] ${
+                            isActive
+                              ? 'bg-ice-500 text-navy-900'
+                              : 'bg-navy-700/60 text-cool-100'
+                          }`}
+                        >
+                          {btn.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {confirmStatus.length > 0 && (
+                    <p className="text-navy-500 text-xs">
+                      最近更新: {new Date(confirmStatus[confirmStatus.length - 1].updatedAt).toLocaleString('zh-CN')}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-ok-400" />
+                  <span className="text-ok-400 text-sm">无需调度确认，可按推荐方案执行</span>
+                </div>
+              )}
             </div>
           </div>
 

@@ -21,9 +21,12 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Phone,
+  RefreshCw,
+  Warehouse,
 } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import type { HistoryRecord, DispatcherDecision } from '@/utils/types'
+import type { HistoryRecord, DispatcherDecision, DispatchConfirmStatus, TemperatureTrend } from '@/utils/types'
 
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr)
@@ -67,9 +70,40 @@ const getScoreBarColor = (decision: DispatcherDecision): string => {
   }
 }
 
+const getTrendBadgeClass = (trend: TemperatureTrend): string => {
+  switch (trend) {
+    case '持续升高':
+    case '先降后升':
+    case '波动':
+      return 'bg-warn-500/20 text-warn-400'
+    case '持续下降':
+    case '先升后降':
+      return 'bg-ok-500/20 text-ok-400'
+    case '无变化':
+      return 'bg-navy-700/50 text-cool-100'
+    default:
+      return 'bg-navy-700/50 text-cool-100'
+  }
+}
+
+const getConfirmBadgeClass = (status: DispatchConfirmStatus): string => {
+  switch (status) {
+    case '待确认':
+      return 'bg-warn-500/20 text-warn-400'
+    case '已联系':
+      return 'bg-ice-500/20 text-ice-400'
+    case '等待回复':
+      return 'bg-warn-500/20 text-warn-400'
+    case '已获准执行':
+      return 'bg-ok-500/20 text-ok-400'
+    default:
+      return 'bg-navy-700/50 text-cool-100'
+  }
+}
+
 export default function History() {
   const navigate = useNavigate()
-  const { historyRecords } = useAppStore()
+  const { historyRecords, updateConfirmStatus } = useAppStore()
 
   const isValidDataUrl = (url: string): boolean => {
     return url.startsWith('data:image/')
@@ -125,6 +159,10 @@ export default function History() {
 
   const renderRecordCard = (record: HistoryRecord) => {
     const isExpanded = expandedId === record.id
+    const latestConfirm = record.confirmStatus.length > 0
+      ? record.confirmStatus[record.confirmStatus.length - 1]
+      : null
+    const canUpdateConfirm = latestConfirm && latestConfirm.status !== '已获准执行'
 
     return (
       <div key={record.id} className="card-dark">
@@ -190,7 +228,7 @@ export default function History() {
 
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            isExpanded ? 'max-h-[2000px] opacity-100 mt-4' : 'max-h-0 opacity-0'
+            isExpanded ? 'max-h-[4000px] opacity-100 mt-4' : 'max-h-0 opacity-0'
           }`}
         >
           <div className="border-t border-navy-700/50 pt-4 space-y-4">
@@ -234,11 +272,17 @@ export default function History() {
 
             {record.midRouteReadings && record.midRouteReadings.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-cool-100 text-sm font-medium">途中温度记录</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-cool-100 text-sm font-medium">途中温度记录</h4>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getTrendBadgeClass(record.dispatcherResult.temperatureTrend)}`}>
+                    {record.dispatcherResult.temperatureTrend}
+                  </span>
+                </div>
                 <div className="bg-navy-900/50 rounded-lg p-3 space-y-2">
-                  {record.midRouteReadings.map((reading) => {
-                    const isHigher = reading.temperature > record.initialTemp
-                    const isLower = reading.temperature < record.initialTemp
+                  {record.midRouteReadings.map((reading, idx) => {
+                    const prevTemp = idx === 0 ? record.initialTemp : record.midRouteReadings[idx - 1].temperature
+                    const isHigher = reading.temperature > prevTemp
+                    const isLower = reading.temperature < prevTemp
                     return (
                       <div key={reading.id} className="flex items-start justify-between py-1">
                         <div className="flex items-center gap-2">
@@ -253,6 +297,9 @@ export default function History() {
                             isHigher ? 'text-warn-400' : isLower ? 'text-ok-400' : 'text-cool-100'
                           }`}>
                             {reading.temperature}℃
+                          </span>
+                          <span className="text-navy-600 text-xs">
+                            {isHigher ? `↑${(reading.temperature - prevTemp).toFixed(1)}` : isLower ? `↓${(prevTemp - reading.temperature).toFixed(1)}` : '-0.0'}
                           </span>
                           {reading.note && (
                             <span className="text-navy-600 text-sm ml-2">{reading.note}</span>
@@ -316,18 +363,23 @@ export default function History() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-navy-600 text-sm">综合评分</span>
-                    <span
-                      className={`font-din font-bold text-xl ${
-                        record.dispatcherResult.score >= 80
-                          ? 'text-ok-400'
-                          : record.dispatcherResult.score >= 60
-                          ? 'text-ice-400'
-                          : 'text-warn-400'
-                      }`}
-                    >
-                      {record.dispatcherResult.score}
-                      <span className="text-sm text-navy-600 font-normal">/100</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`font-din font-bold text-xl ${
+                          record.dispatcherResult.score >= 80
+                            ? 'text-ok-400'
+                            : record.dispatcherResult.score >= 60
+                            ? 'text-ice-400'
+                            : 'text-warn-400'
+                        }`}
+                      >
+                        {record.dispatcherResult.score}
+                        <span className="text-sm text-navy-600 font-normal">/100</span>
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getTrendBadgeClass(record.dispatcherResult.temperatureTrend)}`}>
+                        {record.dispatcherResult.temperatureTrend}
+                      </span>
+                    </div>
                   </div>
                   <div className="w-full h-2 bg-navy-700 rounded-full overflow-hidden">
                     <div
@@ -372,6 +424,14 @@ export default function History() {
                     )}
                     <span className="text-cool-100 text-sm">距离合理</span>
                   </div>
+                  <div className="flex items-center gap-2 col-span-2">
+                    {!record.dispatcherResult.temperatureTrendWorsening ? (
+                      <CheckCircle className="w-4 h-4 text-ok-400" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-warn-400" />
+                    )}
+                    <span className="text-cool-100 text-sm">温度趋势良好</span>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -386,6 +446,84 @@ export default function History() {
                   </ul>
                 </div>
 
+                {record.dispatcherResult.plans && record.dispatcherResult.plans.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-cool-100 text-sm font-medium">方案风险对比</h4>
+                    {record.dispatcherResult.plans.map((plan) => {
+                      const isRecommended = plan.decision === record.dispatcherResult.decision
+                      const riskBadgeClass =
+                        plan.riskLevel === '低风险'
+                          ? 'bg-ok-500/20 text-ok-400 border-ok-500/30'
+                          : plan.riskLevel === '中风险'
+                          ? 'bg-warn-500/20 text-warn-400 border-warn-500/30'
+                          : 'bg-red-500/20 text-red-400 border-red-500/30'
+                      const PlanIcon =
+                        plan.decision === '继续运输'
+                          ? Truck
+                          : plan.decision === '换车'
+                          ? RefreshCw
+                          : Warehouse
+                      const planBgColor =
+                        plan.decision === '继续运输'
+                          ? 'bg-ok-500'
+                          : plan.decision === '换车'
+                          ? 'bg-warn-500'
+                          : 'bg-ice-500'
+
+                      return (
+                        <div
+                          key={plan.decision}
+                          className={`relative p-3 rounded-xl border-2 transition-all ${
+                            isRecommended
+                              ? 'border-ice-500 bg-navy-800/80'
+                              : 'border-navy-700/30 bg-navy-800/30'
+                          }`}
+                        >
+                          {isRecommended && (
+                            <div className="absolute -top-2.5 right-4 px-2 py-0.5 bg-ice-500 text-navy-900 text-xs font-bold rounded-full">
+                              推荐
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-9 h-9 rounded-full ${planBgColor} flex items-center justify-center shrink-0`}>
+                              <PlanIcon className="w-4 h-4 text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <h5 className="text-cool-50 font-semibold text-sm">{plan.decision}</h5>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${riskBadgeClass}`}>
+                                  {plan.riskLevel}
+                                </span>
+                                <span className="text-navy-600 text-xs font-din">风险分: {plan.riskScore}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-cool-100 text-sm mb-2">{plan.suggestedAction}</p>
+                          {plan.contactPhone && (
+                            <a
+                              href={`tel:${plan.contactPhone}`}
+                              className="flex items-center gap-2 text-ice-400 text-sm mb-2 min-h-[32px]"
+                            >
+                              <Phone className="w-4 h-4" />
+                              <span>{plan.contactPerson} · {plan.contactPhone}</span>
+                            </a>
+                          )}
+                          {plan.notes.length > 0 && (
+                            <ul className="space-y-1">
+                              {plan.notes.map((note, idx) => (
+                                <li key={idx} className="flex items-start gap-2 text-navy-500 text-xs">
+                                  <span className="text-navy-600 mt-0.5">•</span>
+                                  <span>{note}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
                 <div className="bg-navy-800/80 rounded-lg p-3">
                   <div className="flex items-center justify-between">
                     <span className="text-navy-600 text-sm">最终决策</span>
@@ -399,6 +537,57 @@ export default function History() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-cool-100 text-sm font-medium">调度确认记录</h4>
+              {record.dispatcherResult.needDispatcherConfirm ? (
+                <div className="bg-navy-900/50 rounded-lg p-3 space-y-3">
+                  {record.confirmStatus.length > 0 ? (
+                    <div className="space-y-2">
+                      {record.confirmStatus.map((entry, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-1">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getConfirmBadgeClass(entry.status)}`}>
+                            {entry.status}
+                          </span>
+                          <span className="text-navy-600 text-xs">{formatDate(entry.updatedAt)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-navy-600 text-sm">暂无确认记录</p>
+                  )}
+                  {canUpdateConfirm && (
+                    <div className="flex gap-2 pt-2 border-t border-navy-700/50">
+                      <button
+                        type="button"
+                        onClick={() => updateConfirmStatus('已联系')}
+                        className="flex-1 py-2 rounded-lg bg-ice-500/20 text-ice-400 text-sm font-medium min-h-[44px] hover:bg-ice-500/30 transition-colors"
+                      >
+                        标记已联系
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateConfirmStatus('等待回复')}
+                        className="flex-1 py-2 rounded-lg bg-warn-500/20 text-warn-400 text-sm font-medium min-h-[44px] hover:bg-warn-500/30 transition-colors"
+                      >
+                        标记等待回复
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateConfirmStatus('已获准执行')}
+                        className="flex-1 py-2 rounded-lg bg-ok-500/20 text-ok-400 text-sm font-medium min-h-[44px] hover:bg-ok-500/30 transition-colors"
+                      >
+                        标记已获准
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-navy-900/50 rounded-lg p-3">
+                  <p className="text-cool-100 text-sm">无需调度确认</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

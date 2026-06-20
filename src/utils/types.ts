@@ -8,6 +8,15 @@ export type DispatcherDecision = '继续运输' | '换车' | '转入临时冷库
 
 export type RiskLevel = '低风险' | '中风险' | '高风险'
 
+export type TemperatureTrend = '持续升高' | '持续下降' | '先降后升' | '先升后降' | '波动' | '无变化'
+
+export type DispatchConfirmStatus = '待确认' | '已联系' | '等待回复' | '已获准执行'
+
+export interface ConfirmStatusEntry {
+  status: DispatchConfirmStatus
+  updatedAt: string
+}
+
 export interface MidRouteReading {
   id: string
   temperature: number
@@ -32,6 +41,7 @@ export interface DispatcherResult {
   supplementOk: boolean
   siteReliable: boolean
   distanceOk: boolean
+  temperatureTrend: TemperatureTrend
   temperatureTrendWorsening: boolean
   score: number
   plans: PlanRecommendation[]
@@ -55,6 +65,7 @@ export interface HistoryRecord {
   receiptPhotos: string[]
   dispatcherResult: DispatcherResult
   midRouteReadings: MidRouteReading[]
+  confirmStatus: ConfirmStatusEntry[]
 }
 
 export interface Vehicle {

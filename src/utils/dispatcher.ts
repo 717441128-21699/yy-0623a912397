@@ -1,5 +1,60 @@
-import type { CargoType, SupplementUnit, PlanType, DispatcherResult, MidRouteReading, PlanRecommendation, RiskLevel, DispatcherDecision } from './types'
+import type { CargoType, SupplementUnit, PlanType, DispatcherResult, MidRouteReading, PlanRecommendation, RiskLevel, TemperatureTrend } from './types'
 import { SAFE_TEMPERATURES, SITE_RELIABILITY_SCORE } from './types'
+
+function detectTemperatureTrend(readings: MidRouteReading[], initialTemp: number): TemperatureTrend {
+  if (readings.length === 0) return '无变化'
+
+  const sorted = [...readings].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+  const temps = sorted.map((r) => r.temperature)
+
+  if (temps.length === 1) {
+    if (temps[0] > initialTemp) return '持续升高'
+    if (temps[0] < initialTemp) return '持续下降'
+    return '无变化'
+  }
+
+  let alwaysUp = true
+  let alwaysDown = true
+  const allTemps = [initialTemp, ...temps]
+  for (let i = 1; i < allTemps.length; i++) {
+    if (allTemps[i] <= allTemps[i - 1]) alwaysUp = false
+    if (allTemps[i] >= allTemps[i - 1]) alwaysDown = false
+  }
+
+  if (alwaysUp) return '持续升高'
+  if (alwaysDown) return '持续下降'
+
+  const lastTemp = temps[temps.length - 1]
+  const firstTemp = temps[0]
+  let wentDown = false
+  let wentUp = false
+  for (let i = 1; i < temps.length; i++) {
+    if (temps[i] < temps[i - 1]) wentDown = true
+    if (temps[i] > temps[i - 1]) wentUp = true
+  }
+
+  if (wentDown && wentUp) {
+    const minIdx = temps.indexOf(Math.min(...temps))
+    const maxBeforeMin = Math.max(...temps.slice(0, minIdx + 1))
+    const maxAfterMin = Math.max(...temps.slice(minIdx))
+    if (maxAfterMin > maxBeforeMin) return '先降后升'
+    return '波动'
+  }
+
+  if (wentUp && !wentDown) {
+    if (lastTemp > firstTemp) return '持续升高'
+    return '先升后降'
+  }
+
+  if (wentDown && !wentUp) {
+    if (lastTemp < firstTemp) return '持续下降'
+    return '先降后升'
+  }
+
+  return '波动'
+}
 
 export function getDispatcherDecision(
   retestTemp: number,
@@ -31,18 +86,40 @@ export function getDispatcherDecision(
 
   const distanceOk = remainingMileage < 100
 
+  const temperatureTrend = detectTemperatureTrend(midRouteReadings, initialTemp)
+
   let temperatureTrendWorsening = false
-  let maxTemp = initialTemp
   if (midRouteReadings.length > 0) {
-    const latestReading = midRouteReadings[midRouteReadings.length - 1]
-    maxTemp = Math.max(...midRouteReadings.map(r => r.temperature))
-    temperatureTrendWorsening = latestReading.temperature > initialTemp
+    const sorted = [...midRouteReadings].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+    const latestTemp = sorted[0].temperature
+    temperatureTrendWorsening =
+      temperatureTrend === '持续升高' ||
+      temperatureTrend === '先降后升' ||
+      (temperatureTrend === '波动' && latestTemp > initialTemp)
   }
 
   let score = (temperatureOk ? 40 : 0) + (supplementOk ? 25 : 0) + (siteReliable ? 20 : 0) + (distanceOk ? 15 : 0)
-  if (temperatureTrendWorsening) {
+
+  if (temperatureTrend === '持续升高') {
+    score -= 15
+  } else if (temperatureTrend === '先降后升') {
     score -= 10
+  } else if (temperatureTrend === '波动') {
+    score -= 8
+  } else if (temperatureTrend === '先升后降') {
+    score += 5
+  } else if (temperatureTrend === '持续下降') {
+    score += 5
   }
+
+  score = Math.max(0, Math.min(100, score))
+
+  const maxTemp =
+    midRouteReadings.length > 0
+      ? Math.max(initialTemp, ...midRouteReadings.map((r) => r.temperature))
+      : initialTemp
 
   const reasons: string[] = []
 
@@ -71,11 +148,15 @@ export function getDispatcherDecision(
   }
 
   if (midRouteReadings.length > 0) {
-    if (temperatureTrendWorsening) {
-      reasons.push(`途中温度持续升高（最高${maxTemp}℃），趋势不乐观`)
-    } else {
-      reasons.push('途中温度相对稳定')
+    const trendReasonMap: Record<TemperatureTrend, string> = {
+      '持续升高': `途中温度持续升高（最高${maxTemp}℃），趋势不乐观`,
+      '持续下降': '途中温度持续下降，趋势向好',
+      '先降后升': `途中温度先降后升（最高${maxTemp}℃），需警惕回弹`,
+      '先升后降': '途中温度先升后降，已出现回落趋势',
+      '波动': `途中温度波动（${maxTemp}℃ ~ ${Math.min(...midRouteReadings.map((r) => r.temperature))}℃），情况不稳定`,
+      '无变化': '途中温度相对稳定',
     }
+    reasons.push(trendReasonMap[temperatureTrend])
   }
 
   const continueRiskScore = 100 - score
@@ -94,8 +175,9 @@ export function getDispatcherDecision(
   const continueNotes: string[] = []
   if (temperatureOk) continueNotes.push('温度在安全范围内')
   if (supplementOk) continueNotes.push('补冷量充足')
-  if (midRouteReadings.length > 0 && !temperatureTrendWorsening) continueNotes.push('温度趋势稳定')
+  if (temperatureTrend === '持续下降' || temperatureTrend === '先升后降') continueNotes.push('温度趋势向好')
   if (distanceOk) continueNotes.push('剩余里程较短')
+  if (temperatureTrend === '持续升高' || temperatureTrend === '先降后升') continueNotes.push('注意：温度趋势不佳')
 
   const switchRiskScore = score
   let switchRiskLevel: RiskLevel
@@ -185,6 +267,7 @@ export function getDispatcherDecision(
     supplementOk,
     siteReliable,
     distanceOk,
+    temperatureTrend,
     temperatureTrendWorsening,
     plans,
     needDispatcherConfirm,
