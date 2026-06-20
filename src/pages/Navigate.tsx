@@ -46,7 +46,7 @@ export default function Navigate() {
 
   const handleConfirm = () => {
     if (selectedPlan) {
-      navigate('/receipt')
+      navigate('/navigation-execution')
     }
   }
 

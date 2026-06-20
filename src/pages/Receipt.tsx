@@ -1,19 +1,20 @@
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/useAppStore'
-import { CHECKLIST_LABELS, SUPPLEMENT_UNITS, type SupplementUnit } from '@/utils/types'
+import { CHECKLIST_LABELS, SUPPLEMENT_UNITS, type SupplementUnit, SAFE_TEMPERATURES } from '@/utils/types'
+import PhotoUpload from '@/components/PhotoUpload'
 import {
   Check,
   Car,
   Phone,
   Snowflake,
   Thermometer,
-  Camera,
-  X,
   Truck,
   RefreshCw,
   Warehouse,
   CircleCheckBig,
   ArrowLeft,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react'
 
 const STEP_ICONS = [Car, Phone, Snowflake, Thermometer]
@@ -41,9 +42,11 @@ export default function Receipt() {
     submitReceipt,
     receiptSubmitted,
     dispatcherDecision,
+    dispatcherResult,
     resetAll,
     currentTemp,
     toggleChecklist,
+    cargoType,
   } = useAppStore()
 
   const allCompleted = checklistCompleted.every(Boolean)
@@ -64,11 +67,10 @@ export default function Receipt() {
 
   const retestTempNum = retestTemp !== '' ? Number(retestTemp) : null
   const currentTempNum = currentTemp !== '' ? Number(currentTemp) : null
+  const safeTemp = cargoType ? SAFE_TEMPERATURES[cargoType] : 5
   const tempNormal =
     retestTempNum !== null &&
-    currentTempNum !== null &&
-    retestTempNum >= -25 &&
-    retestTempNum <= currentTempNum
+    retestTempNum <= safeTemp
 
   const canSubmit =
     allCompleted &&
@@ -76,11 +78,6 @@ export default function Receipt() {
     Number(supplementAmount) > 0 &&
     retestTemp !== '' &&
     receiptPhotos.length > 0
-
-  const handlePhotoAdd = () => {
-    if (receiptPhotos.length >= 3) return
-    addReceiptPhoto(`photo-receipt-${Date.now()}.jpg`)
-  }
 
   const handleSubmit = () => {
     if (!canSubmit) return
@@ -90,6 +87,10 @@ export default function Receipt() {
   const handleBackHome = () => {
     resetAll()
     navigate('/')
+  }
+
+  const isValidDataUrl = (url: string): boolean => {
+    return url.startsWith('data:image/')
   }
 
   return (
@@ -205,7 +206,7 @@ export default function Receipt() {
                 </div>
                 {retestTempNum !== null && (
                   <p className={`mt-2 text-sm font-medium ${tempNormal ? 'text-ok-400' : 'text-warn-500'}`}>
-                    {tempNormal ? '温度恢复正常' : '温度仍异常'}
+                    {tempNormal ? `温度已恢复至安全范围（≤${safeTemp}℃）` : `温度仍高于安全阈值（${safeTemp}℃）`}
                   </p>
                 )}
               </div>
@@ -214,31 +215,15 @@ export default function Receipt() {
 
           <div className="px-4 mb-4 animate-fade-in">
             <div className="card-dark">
-              <h2 className="text-lg font-semibold text-cool-50 mb-4">现场照片</h2>
-              {receiptPhotos.length > 0 && (
-                <div className="flex flex-wrap gap-3 mb-3">
-                  {receiptPhotos.map((photo, i) => (
-                    <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden bg-navy-700">
-                      <img src={photo} alt="" className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => removeReceiptPhoto(i)}
-                        className="absolute top-1 right-1 w-6 h-6 bg-navy-900/80 rounded-full flex items-center justify-center"
-                      >
-                        <X className="w-3 h-3 text-cool-50" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {receiptPhotos.length < 3 && (
-                <button
-                  onClick={handlePhotoAdd}
-                  className="w-full h-28 rounded-lg border-2 border-dashed border-navy-600 flex flex-col items-center justify-center gap-2"
-                >
-                  <Camera className="w-8 h-8 text-navy-600" />
-                  <span className="text-sm text-navy-600">拍摄补冷后车厢/温控屏照片</span>
-                </button>
-              )}
+              <PhotoUpload
+                photos={receiptPhotos}
+                onAdd={addReceiptPhoto}
+                onRemove={removeReceiptPhoto}
+                maxPhotos={3}
+                label="现场照片"
+                hint="拍摄补冷后车厢/温控屏照片（最多3张）"
+                capture={true}
+              />
             </div>
           </div>
         </>
@@ -254,36 +239,111 @@ export default function Receipt() {
         </button>
       </div>
 
-      {receiptSubmitted && (
-        <div className="fixed inset-0 z-50 bg-navy-900/98 flex flex-col items-center justify-center px-6">
-          <div className="animate-bounce-in mb-6">
+      {receiptSubmitted && dispatcherResult && (
+        <div className="fixed inset-0 z-50 bg-navy-900/98 flex flex-col items-center justify-center px-6 overflow-y-auto py-8">
+          <div className="animate-bounce-in mb-4">
             <CircleCheckBig className="w-20 h-20 text-ok-400" />
           </div>
           <h2 className="text-2xl font-bold text-cool-50 mb-2">回执已提交</h2>
-          <p className="text-cool-100 mb-8">调度员判断结果</p>
-          <div className="w-full max-w-sm space-y-3 mb-8">
-            {DECISIONS.map((d) => {
-              const isActive = dispatcherDecision === d.value
-              const Icon = d.icon
-              return (
+          <p className="text-cool-100 mb-6">调度员智能判断结果</p>
+
+          <div className="w-full max-w-sm space-y-4 mb-6">
+            <div className="card-dark">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-navy-600 text-sm">综合评分</span>
+                <span className={`font-din font-bold text-2xl ${
+                  dispatcherResult.score >= 80 ? 'text-ok-400' :
+                  dispatcherResult.score >= 60 ? 'text-ice-400' : 'text-warn-400'
+                }`}>
+                  {dispatcherResult.score}<span className="text-sm text-navy-600 font-normal">/100</span>
+                </span>
+              </div>
+              <div className="w-full h-2 bg-navy-700 rounded-full overflow-hidden">
                 <div
-                  key={d.value}
-                  className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
-                    isActive
-                      ? `${d.border} bg-navy-800/80`
-                      : 'border-navy-700/30 bg-navy-800/30 opacity-40'
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    dispatcherResult.decision === '继续运输' ? 'bg-ok-500' :
+                    dispatcherResult.decision === '换车' ? 'bg-warn-500' : 'bg-ice-500'
                   }`}
-                >
-                  <div className={`w-12 h-12 rounded-full ${isActive ? d.bg : 'bg-navy-600'} flex items-center justify-center`}>
-                    <Icon className={`w-6 h-6 ${isActive ? 'text-white' : 'text-navy-700'}`} />
-                  </div>
-                  <span className={`text-lg font-semibold ${isActive ? 'text-cool-50' : 'text-navy-600'}`}>
-                    {d.value}
-                  </span>
+                  style={{ width: `${dispatcherResult.score}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="card-dark">
+              <h3 className="text-cool-100 text-sm font-medium mb-3">评估维度</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  {dispatcherResult.temperatureOk ? (
+                    <CheckCircle className="w-4 h-4 text-ok-400" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-warn-400" />
+                  )}
+                  <span className="text-cool-100 text-sm">温度达标</span>
                 </div>
-              )
-            })}
+                <div className="flex items-center gap-2">
+                  {dispatcherResult.supplementOk ? (
+                    <CheckCircle className="w-4 h-4 text-ok-400" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-warn-400" />
+                  )}
+                  <span className="text-cool-100 text-sm">补冷充足</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {dispatcherResult.siteReliable ? (
+                    <CheckCircle className="w-4 h-4 text-ok-400" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-warn-400" />
+                  )}
+                  <span className="text-cool-100 text-sm">站点可靠</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {dispatcherResult.distanceOk ? (
+                    <CheckCircle className="w-4 h-4 text-ok-400" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-warn-400" />
+                  )}
+                  <span className="text-cool-100 text-sm">距离合理</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-dark">
+              <h3 className="text-cool-100 text-sm font-medium mb-3">判断理由</h3>
+              <ul className="space-y-2">
+                {dispatcherResult.reasons.map((reason, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-cool-100 text-sm">
+                    <span className="text-ice-400 mt-0.5">•</span>
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              {DECISIONS.map((d) => {
+                const isActive = dispatcherDecision === d.value
+                const Icon = d.icon
+                return (
+                  <div
+                    key={d.value}
+                    className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                      isActive
+                        ? `${d.border} bg-navy-800/80`
+                        : 'border-navy-700/30 bg-navy-800/30 opacity-40'
+                    }`}
+                  >
+                    <div className={`w-12 h-12 rounded-full ${isActive ? d.bg : 'bg-navy-600'} flex items-center justify-center`}>
+                      <Icon className={`w-6 h-6 ${isActive ? 'text-white' : 'text-navy-700'}`} />
+                    </div>
+                    <span className={`text-lg font-semibold ${isActive ? 'text-cool-50' : 'text-navy-600'}`}>
+                      {d.value}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
+
           <button onClick={handleBackHome} className="btn-ice max-w-sm w-full">
             返回首页
           </button>

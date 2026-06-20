@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, Thermometer, Camera, X, Truck, Package, MapPin, ChevronDown } from 'lucide-react'
+import { AlertTriangle, Thermometer, Truck, Package, MapPin, ChevronDown, History } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { VEHICLES } from '@/utils/mockData'
 import { CARGO_TYPES } from '@/utils/types'
-
-const MOCK_COLORS = ['#1a3a5c', '#2a4a6c', '#1b2b3c']
+import PhotoUpload from '@/components/PhotoUpload'
 
 export default function Report() {
   const navigate = useNavigate()
@@ -20,12 +19,7 @@ export default function Report() {
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
-  const isValid = plateNumber && cargoType && currentTemp !== '' && remainingMileage !== ''
-
-  const handleAddPhoto = () => {
-    if (reportPhotos.length >= 3) return
-    addReportPhoto(MOCK_COLORS[reportPhotos.length % MOCK_COLORS.length])
-  }
+  const isValid = plateNumber && cargoType && currentTemp !== '' && remainingMileage !== '' && reportPhotos.length > 0
 
   const handleSubmit = () => {
     if (!isValid) return
@@ -35,6 +29,18 @@ export default function Report() {
 
   return (
     <div className="min-h-screen bg-navy-900 pb-28">
+      <div className="px-4 py-3 flex items-center justify-between bg-navy-900">
+        <h1 className="text-xl font-bold text-cool-50">冷链应急补冷</h1>
+        <button
+          type="button"
+          onClick={() => navigate('/history')}
+          className="flex items-center gap-2 px-4 py-2 bg-navy-800 rounded-lg text-cool-100 text-sm font-medium min-h-[44px] active:scale-[0.97] transition-transform"
+        >
+          <History className="w-4 h-4" />
+          历史记录
+        </button>
+      </div>
+
       <div className="bg-red-600/90 animate-pulse-slow px-4 py-3 flex items-center gap-3">
         <AlertTriangle className="w-6 h-6 text-white shrink-0" />
         <div className="flex-1">
@@ -147,35 +153,14 @@ export default function Report() {
         </div>
 
         <div className="card-dark">
-          <label className="flex items-center gap-2 text-cool-100 text-sm font-medium mb-3">
-            <Camera className="w-4 h-4 text-ice-500" />
-            现场照片
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {reportPhotos.map((color, idx) => (
-              <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                <div className="w-full h-full" style={{ backgroundColor: color }} />
-                <button
-                  type="button"
-                  onClick={() => removeReportPhoto(idx)}
-                  className="absolute top-1 right-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            ))}
-            {reportPhotos.length < 3 && (
-              <button
-                type="button"
-                onClick={handleAddPhoto}
-                className="w-20 h-20 border-2 border-dashed border-navy-600 rounded-lg flex flex-col items-center justify-center gap-1 text-navy-600 transition-colors hover:border-ice-500/50 hover:text-ice-400 min-h-[44px]"
-              >
-                <Camera className="w-6 h-6" />
-                <span className="text-[10px]">拍摄温控屏</span>
-              </button>
-            )}
-          </div>
-          <p className="text-navy-600 text-xs mt-2">拍摄温控屏或封签照片（最多3张）</p>
+          <PhotoUpload
+            photos={reportPhotos}
+            onAdd={addReportPhoto}
+            onRemove={removeReportPhoto}
+            maxPhotos={3}
+            label="现场照片"
+            hint="拍摄温控屏或封签照片（最多3张）"
+          />
         </div>
       </div>
 
