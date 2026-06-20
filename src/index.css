@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0A1929;
+  color: #F0F7FF;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: #0A1929;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@layer components {
+  .card-dark {
+    @apply bg-navy-800/80 border border-navy-700/50 rounded-xl p-4;
+  }
+
+  .input-field {
+    @apply w-full bg-navy-900/60 border border-navy-700/60 rounded-lg px-4 py-3 text-cool-50
+           focus:outline-none focus:border-ice-500/60 focus:ring-1 focus:ring-ice-500/30
+           placeholder:text-navy-600 transition-colors;
+  }
+
+  .btn-primary {
+    @apply w-full py-4 rounded-xl font-semibold text-lg transition-all active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-warn {
+    @apply btn-primary bg-warn-500 text-white hover:bg-warn-600
+           shadow-[0_0_20px_rgba(255,107,53,0.3)];
+  }
+
+  .btn-ice {
+    @apply btn-primary bg-ice-500 text-navy-900 hover:bg-ice-400
+           shadow-[0_0_20px_rgba(0,180,216,0.3)];
+  }
+
+  .btn-ok {
+    @apply btn-primary bg-ok-500 text-white hover:bg-ok-400
+           shadow-[0_0_20px_rgba(0,200,83,0.3)];
+  }
+}
